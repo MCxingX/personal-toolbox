@@ -172,11 +172,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Default: try GUI, fallback to console
     try:
-        from news_intelligence_desktop.ui.gui import run_gui
+        from news_intelligence_desktop.ui.tk_app import run_gui
         return run_gui(args.data_dir)
     except ImportError:
-        print("提示: PySide6 未安装，使用控制台模式")
-        print("安装图形界面: pip install PySide6")
+        print("提示: tkinter 未安装，使用控制台模式")
         from news_intelligence_desktop.ui.console import ConsoleUI
         return ConsoleUI(app).run()
 

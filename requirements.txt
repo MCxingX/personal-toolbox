@@ -3,6 +3,3 @@ feedparser>=6.0.0
 beautifulsoup4>=4.11.0
 jieba>=0.42.0
 apscheduler>=3.10.0
-
-# 图形界面（可选）
-# PySide6>=6.5.0
