@@ -162,6 +162,7 @@ class TestAppCore(unittest.TestCase):
     def test_cli_json_output(self):
         from news_intelligence_desktop.app.main import main
         data_dir = Path(self.tmp.name) / "cli"
+        # Use --json to avoid launching GUI
         self.assertEqual(main(["--data-dir", str(data_dir), "--json"]), 0)
 
     def test_article_detail(self):

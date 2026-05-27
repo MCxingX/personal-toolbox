@@ -1,3 +1,4 @@
+"""Main entry point for News Intelligence Desktop."""
 from __future__ import annotations
 
 import argparse
@@ -10,84 +11,133 @@ from news_intelligence_desktop.services.app_service import AppService
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="news-intelligence", description="News Intelligence Desktop - 个人每日信息中枢")
-    parser.add_argument("--data-dir", type=Path, help="Override data directory")
-    parser.add_argument("--console", action="store_true", help="Run console dashboard")
-    parser.add_argument("--collect", action="store_true", help="Run data collection")
-    parser.add_argument("--json", action="store_true", help="JSON output")
+    parser = argparse.ArgumentParser(
+        prog="news-intelligence",
+        description="News Intelligence Desktop - 个人每日信息中枢与 API 工具箱"
+    )
+    parser.add_argument("--data-dir", type=Path, help="数据目录路径")
+    parser.add_argument("--console", action="store_true", help="使用控制台模式（不启动图形界面）")
+    parser.add_argument("--json", action="store_true", help="JSON 格式输出")
+    parser.add_argument("--collect", action="store_true", help="运行数据采集")
+
     sub = parser.add_subparsers(dest="command")
 
-    p = sub.add_parser("add-special", help="Add special favorite web tab")
-    p.add_argument("name"); p.add_argument("url")
+    # Special favorites
+    p = sub.add_parser("add-special", help="添加特别收藏网页")
+    p.add_argument("name")
+    p.add_argument("url")
     p.add_argument("--mode", default="domain", choices=["domain", "exact", "path_prefix", "custom_contains"])
-    p.add_argument("--path", default=""); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("search", help="Search local content")
-    p.add_argument("query"); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("brief", help="Generate morning/evening brief")
-    p.add_argument("type", choices=["晨报", "晚报"]); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("export-article", help="Export article")
-    p.add_argument("article_id", type=int); p.add_argument("output", type=Path)
-    p.add_argument("--format", default="markdown", choices=["markdown", "html", "json", "csv"]); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("backup", help="Create backup")
-    p.add_argument("output", type=Path); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("privacy", help="Toggle privacy mode")
-    p.add_argument("state", choices=["on", "off", "status"]); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("collect", help="Run data collection")
+    p.add_argument("--path", default="")
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("add-watchlist", help="Add watchlist item")
-    p.add_argument("name"); p.add_argument("type", choices=["keyword", "company", "tech_stack", "city", "policy_topic", "person"])
-    p.add_argument("keywords", nargs="+"); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("add-quote", help="Add daily quote")
-    p.add_argument("content"); p.add_argument("--author", default=""); p.add_argument("--style", default="encourage")
+    # Search
+    p = sub.add_parser("search", help="搜索本地内容")
+    p.add_argument("query")
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("list-apis", help="List API catalog")
-    p.add_argument("--category"); p.add_argument("--provider"); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("source-health", help="Show source health")
+    # Brief
+    p = sub.add_parser("brief", help="生成晨报/晚报")
+    p.add_argument("type", choices=["晨报", "晚报"])
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("notifications", help="List notifications")
-    p.add_argument("--status"); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("read", help="Mark article as read")
-    p.add_argument("article_id", type=int); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("favorite", help="Mark article as favorite")
-    p.add_argument("article_id", type=int); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("collection", help="List collection")
-    p.add_argument("type", choices=["favorite", "read_later"]); p.add_argument("--json", action="store_true")
-
-    p = sub.add_parser("rebuild-index", help="Rebuild search index")
+    # Export
+    p = sub.add_parser("export-article", help="导出文章")
+    p.add_argument("article_id", type=int)
+    p.add_argument("output", type=Path)
+    p.add_argument("--format", default="markdown", choices=["markdown", "html", "json", "csv"])
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("add-source", help="Add data source")
-    p.add_argument("name"); p.add_argument("type", choices=["api", "rss", "web"])
-    p.add_argument("category"); p.add_argument("url")
+    # Backup
+    p = sub.add_parser("backup", help="创建备份")
+    p.add_argument("output", type=Path)
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("list-feeds", help="List available RSS feeds")
+    # Privacy
+    p = sub.add_parser("privacy", help="切换隐私模式")
+    p.add_argument("state", choices=["on", "off", "status"])
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("tech-detect", help="Detect tech changes from articles")
+    # Collect
+    p = sub.add_parser("collect", help="运行数据采集")
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("policy-add", help="Add a policy item")
-    p.add_argument("title"); p.add_argument("--issuer", default=""); p.add_argument("--region", default="")
-    p.add_argument("--category", default=""); p.add_argument("--summary", default="")
-    p.add_argument("--source-url", default=""); p.add_argument("--json", action="store_true")
+    # Watchlist
+    p = sub.add_parser("add-watchlist", help="添加关注项")
+    p.add_argument("name")
+    p.add_argument("type", choices=["keyword", "company", "tech_stack", "city", "policy_topic", "person"])
+    p.add_argument("keywords", nargs="+")
+    p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("policy-list", help="List policy items")
-    p.add_argument("--region"); p.add_argument("--category"); p.add_argument("--json", action="store_true")
+    # Quote
+    p = sub.add_parser("add-quote", help="添加每日语录")
+    p.add_argument("content")
+    p.add_argument("--author", default="")
+    p.add_argument("--style", default="encourage")
+    p.add_argument("--json", action="store_true")
+
+    # API list
+    p = sub.add_parser("list-apis", help="列出 API 目录")
+    p.add_argument("--category")
+    p.add_argument("--provider")
+    p.add_argument("--json", action="store_true")
+
+    # Source health
+    p = sub.add_parser("source-health", help="查看数据源健康状态")
+    p.add_argument("--json", action="store_true")
+
+    # Notifications
+    p = sub.add_parser("notifications", help="查看通知")
+    p.add_argument("--status")
+    p.add_argument("--json", action="store_true")
+
+    # Read/Favorite
+    p = sub.add_parser("read", help="标记文章已读")
+    p.add_argument("article_id", type=int)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("favorite", help="收藏文章")
+    p.add_argument("article_id", type=int)
+    p.add_argument("--json", action="store_true")
+
+    # Collection
+    p = sub.add_parser("collection", help="查看收藏夹")
+    p.add_argument("type", choices=["favorite", "read_later"])
+    p.add_argument("--json", action="store_true")
+
+    # Rebuild index
+    p = sub.add_parser("rebuild-index", help="重建搜索索引")
+    p.add_argument("--json", action="store_true")
+
+    # Add source
+    p = sub.add_parser("add-source", help="添加数据源")
+    p.add_argument("name")
+    p.add_argument("type", choices=["api", "rss", "web"])
+    p.add_argument("category")
+    p.add_argument("url")
+    p.add_argument("--json", action="store_true")
+
+    # List feeds
+    p = sub.add_parser("list-feeds", help="列出可用 RSS 源")
+    p.add_argument("--json", action="store_true")
+
+    # Tech detect
+    p = sub.add_parser("tech-detect", help="检测技术变化")
+    p.add_argument("--json", action="store_true")
+
+    # Policy
+    p = sub.add_parser("policy-add", help="添加政策条目")
+    p.add_argument("title")
+    p.add_argument("--issuer", default="")
+    p.add_argument("--region", default="")
+    p.add_argument("--category", default="")
+    p.add_argument("--summary", default="")
+    p.add_argument("--source-url", default="")
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("policy-list", help="列出政策条目")
+    p.add_argument("--region")
+    p.add_argument("--category")
+    p.add_argument("--json", action="store_true")
 
     return parser
 
@@ -99,26 +149,36 @@ def main(argv: list[str] | None = None) -> int:
     app = AppService(settings)
     app.initialize()
 
+    # Handle --collect flag
     if args.collect:
         result = app.collect_all()
         _out(args, {"message": f"采集完成: weather={result['weather']}, earthquake={result['earthquake']}, news={result['news']}, hot={result['hot']}", **result})
         return 0
 
+    # Handle subcommands
     if args.command:
         return _dispatch(app, args)
 
+    # Handle --console flag
     if args.console:
         from news_intelligence_desktop.ui.console import ConsoleUI
         return ConsoleUI(app).run()
 
-    dash = app.home_dashboard()
+    # Handle --json flag (output dashboard as JSON)
     if args.json:
+        dash = app.home_dashboard()
         print(json.dumps(dash, ensure_ascii=False, indent=2))
-    else:
-        print(dash["title"])
-        for card in dash["cards"]:
-            print(f"  [{card['name']}] {card['summary']}")
-    return 0
+        return 0
+
+    # Default: try GUI, fallback to console
+    try:
+        from news_intelligence_desktop.ui.gui import run_gui
+        return run_gui(args.data_dir)
+    except ImportError:
+        print("提示: PySide6 未安装，使用控制台模式")
+        print("安装图形界面: pip install PySide6")
+        from news_intelligence_desktop.ui.console import ConsoleUI
+        return ConsoleUI(app).run()
 
 
 def _dispatch(app: AppService, args: argparse.Namespace) -> int:
@@ -148,13 +208,13 @@ def _dispatch(app: AppService, args: argparse.Namespace) -> int:
         _out(args, {"message": f"隐私模式：{'开启' if enabled else '关闭'}", "enabled": enabled})
     elif cmd == "collect":
         result = app.collect_all()
-        _out(args, {"message": f"采集完成", **result})
+        _out(args, {"message": "采集完成", **result})
     elif cmd == "add-watchlist":
         wid = app.personal.add_watchlist(args.name, args.type, args.keywords)
         _out(args, {"message": f"已添加关注：{args.name}", "id": wid})
     elif cmd == "add-quote":
         qid = app.quote_service.add_quote(args.content, args.author, args.style)
-        _out(args, {"message": f"已添加语录", "id": qid})
+        _out(args, {"message": "已添加语录", "id": qid})
     elif cmd == "list-apis":
         apis = app.api_service.list_apis(args.category, args.provider)
         _out(args, {"message": f"共 {len(apis)} 个 API", "apis": apis})
