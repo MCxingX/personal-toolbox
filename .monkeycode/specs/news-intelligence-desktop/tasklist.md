@@ -1,0 +1,252 @@
+# 需求实施计划
+
+- [ ] 1. 设置 Python 桌面项目结构和基础工程配置
+  - [ ] 1.1 创建 `news_intelligence_desktop/` 应用目录、`app/`、`ui/`、`services/`、`connectors/`、`analysis/`、`storage/`、`config/`、`resources/` 和 `tests/` 目录
+    - 覆盖需求：Requirement 1、Requirement 11
+    - 建立后续 UI、采集、分析、存储和打包的代码边界
+  - [ ] 1.2 创建 `pyproject.toml`、应用入口 `app/main.py` 和基础配置加载模块
+    - 覆盖需求：Requirement 1、Requirement 10、Requirement 11
+    - 配置 Python 版本、依赖分组、格式化工具和启动入口
+  - [ ] 1.3 实现应用数据目录、日志目录和默认配置初始化
+    - 覆盖需求：Requirement 1、Requirement 10、Requirement 11
+    - 首次启动时创建 SQLite 数据库路径、配置路径和日志路径
+  - [ ]* 1.4 编写工程初始化单元测试
+    - 覆盖需求：Requirement 1、Requirement 10、Requirement 11
+    - 验证首次启动目录创建、配置加载和日志路径生成
+
+- [ ] 2. 实现 SQLite 数据模型和存储层
+  - [ ] 2.1 创建数据库连接、迁移执行和事务管理模块
+    - 覆盖需求：Requirement 9、Requirement 10
+    - 支持数据库初始化、版本迁移、失败回滚和错误日志
+  - [ ] 2.2 实现来源、资讯、地震、天气位置、关键词查询和热点报告数据表
+    - 覆盖需求：Requirement 2、Requirement 3、Requirement 4、Requirement 5、Requirement 7、Requirement 8、Requirement 10
+    - 对应 `source_configs`、`articles`、`earthquake_events`、`weather_locations`、`keyword_queries`、`hot_reports`
+  - [ ] 2.3 实现网页来源和抓包导入数据表
+    - 覆盖需求：Requirement 13、Requirement 14、Requirement 15
+    - 对应 `captured_exchanges`、`import_candidates` 和网页解析规则字段
+  - [ ] 2.4 实现个人使用数据表
+    - 覆盖需求：Requirement 26、Requirement 27、Requirement 28、Requirement 29、Requirement 30、Requirement 31、Requirement 32、Requirement 33、Requirement 34、Requirement 35、Requirement 36
+    - 对应 `reading_states`、`collections`、`special_favorite_sources`、`special_favorite_matches`、`watchlist_items`、`daily_briefs`、`search_index`、`export_jobs`、`backup_records`、`credibility_explanations`、`source_health_metrics`、`sync_queue` 和 `privacy_mode_state`
+  - [ ] 2.5 实现 Repository 层的增删改查和分页查询
+    - 覆盖需求：Requirement 2、Requirement 5、Requirement 8、Requirement 9、Requirement 10、Requirement 14、Requirement 26、Requirement 27、Requirement 28、Requirement 29、Requirement 31、Requirement 33
+    - 支持列表页分页、详情页查询、候选内容确认入库和来源状态更新
+  - [ ]* 2.6 编写存储层单元测试和迁移测试
+    - 覆盖需求：Requirement 9、Requirement 10、Requirement 14、Requirement 26、Requirement 27、Requirement 28、Requirement 29、Requirement 31、Requirement 33
+    - 验证迁移幂等性、事务回滚、分页查询、候选入库、阅读状态、关注清单、报告历史、索引重建和来源健康记录
+
+- [ ] 3. 实现桌面主界面和模块导航
+  - [ ] 3.1 创建 PySide6 主窗口、侧边栏导航、状态栏和内容容器
+    - 覆盖需求：Requirement 1、Requirement 23
+    - 支持首页信息中枢、天气、地震、国内新闻、国际新闻、猎奇、热点报告、关键词舆情、网页来源、抓包导入、API 工具箱和设置入口
+  - [ ] 3.2 实现通用列表组件、详情组件、加载状态和错误提示组件
+    - 覆盖需求：Requirement 1、Requirement 5、Requirement 8、Requirement 12、Requirement 15
+    - 支持摘要、来源、时间、标签、可信度和原始链接展示
+  - [ ] 3.3 实现来源设置页面和刷新状态展示
+    - 覆盖需求：Requirement 2、Requirement 9、Requirement 12、Requirement 13
+    - 展示来源启用状态、最后采集时间、限流参数和错误原因
+  - [ ] 3.4 实现首页信息中枢和 API 工具箱独立入口
+    - 覆盖需求：Requirement 21、Requirement 22、Requirement 23
+    - 首页展示今日总览、技术变化、重要新闻、政策变化、本地事件、热点吃瓜、天气地震和每日语录，API 工具箱通过独立按钮进入
+  - [ ]* 3.5 编写 UI 组件级测试
+    - 覆盖需求：Requirement 1、Requirement 2
+    - 验证页面切换、状态展示和错误提示渲染
+
+- [ ] 4. 实现来源管理和采集调度
+  - [ ] 4.1 实现来源管理服务 `SourceManager`
+    - 覆盖需求：Requirement 2、Requirement 12、Requirement 13
+    - 支持来源新增、修改、启停、测试、限流配置和合规状态记录
+  - [ ] 4.2 实现 APScheduler 定时任务和手动刷新任务
+    - 覆盖需求：Requirement 1、Requirement 9
+    - 支持按来源分类执行采集、记录任务日志和展示采集进度
+  - [ ] 4.3 实现失败退避、限流处理和来源暂停策略
+    - 覆盖需求：Requirement 2、Requirement 9、Requirement 12
+    - 对连续失败来源记录错误原因并暂停短周期重试
+  - [ ]* 4.4 编写调度和限流单元测试
+    - 覆盖需求：Requirement 2、Requirement 9、Requirement 12
+    - 验证失败次数、重试间隔、限流策略和任务取消行为
+
+- [ ] 5. 实现公开 API、工具箱目录和 RSS 连接器
+  - [ ] 5.1 实现 wttr.in 和 Open-Meteo 天气连接器及位置配置服务
+    - 覆盖需求：Requirement 3
+    - 支持无 key 天气查询、坐标查询、逐小时预报、多日预报和失败缓存展示
+  - [ ] 5.2 实现 USGS 和中国地震台网 RSS 连接器及地震过滤服务
+    - 覆盖需求：Requirement 4
+    - 支持全球地震、国内地震速报、震级、区域、时间范围过滤和关联新闻查询入口
+  - [ ] 5.3 实现韩小韩 API、GDELT、通用新闻 API 和 RSS 连接器
+    - 覆盖需求：Requirement 5、Requirement 6、Requirement 7、Requirement 8、Requirement 12
+    - 标准化热搜、天气、猎奇、新闻标题、摘要、来源、发布时间、URL、分类和语言字段
+  - [ ] 5.4 实现免费 key 来源配置和可选连接器框架
+    - 覆盖需求：Requirement 2、Requirement 3、Requirement 5、Requirement 12
+    - 支持 tianqiapi.com、和风天气、枫雨 API、天行数据、聚合数据等来源在用户配置 key 后启用
+  - [ ] 5.5 实现枫雨 API 适配器和全量接口目录
+    - 覆盖需求：Requirement 5、Requirement 6、Requirement 7、Requirement 8、Requirement 12、Requirement 16、Requirement 18、Requirement 21、Requirement 22
+    - 接入 `/API/jinri_hot.php`、`/API/txxw.php`、`/API/aiwenben.php`，并预留百科、历史、黄金价格、IP 归属地扩展接口
+    - 收录枫雨 API 接口大厅全部接口元数据，按风险标签、认证方式、输出类型和启用状态管理
+  - [ ] 5.6 实现 public-apis 目录同步和分类检索
+    - 覆盖需求：Requirement 21、Requirement 22
+    - 解析 public-apis 分类、API 名称、描述、认证方式、HTTPS、CORS 和文档链接，保存到本地 API 目录
+  - [ ] 5.7 实现通用 API 工具调用器和结果展示模型
+    - 覆盖需求：Requirement 21、Requirement 22
+    - 支持参数表单、请求预览、JSON/Text/Image/File 结果展示、调用日志、限频、超时和重试
+  - [ ] 5.8 实现去重、正文摘要和分类归一化服务
+    - 覆盖需求：Requirement 5、Requirement 6、Requirement 9
+    - 基于 URL、标题相似度和来源聚合合并重复条目
+  - [ ]* 5.9 编写连接器 fixture 和集成测试
+    - 覆盖需求：Requirement 3、Requirement 4、Requirement 5、Requirement 9、Requirement 21、Requirement 22
+    - 使用录制响应验证 wttr.in、Open-Meteo、USGS、中国地震台网 RSS、韩小韩 API、枫雨 API、public-apis 目录和 RSS 解析稳定性
+
+- [ ] 6. 实现第三方公开网页接入
+  - [ ] 6.1 实现网页来源配置 UI 和解析规则编辑器
+    - 覆盖需求：Requirement 13
+    - 支持 CSS Selector、XPath、自动正文提取、字段映射和刷新频率配置
+  - [ ] 6.2 实现 `WebPageConnector` 和 `WebPageRuleParser`
+    - 覆盖需求：Requirement 13、Requirement 12
+    - 拉取公开网页内容并解析标题、摘要、正文、时间、作者和链接候选
+  - [ ] 6.3 实现网页来源测试预览和规则校验
+    - 覆盖需求：Requirement 13
+    - 在启用前展示候选字段、解析成功率和结构变更提示
+  - [ ] 6.4 实现网页来源合规状态与受限页面跳过逻辑
+    - 覆盖需求：Requirement 12、Requirement 13
+    - 对登录页、验证码页、设备校验页和授权页记录跳过原因
+  - [ ]* 6.5 编写网页解析单元测试和属性测试
+    - 覆盖需求：Requirement 13
+    - 验证解析结果字段完整性、空页面处理和规则变化提示
+
+- [ ] 7. 实现本地抓包文件导入与展示
+  - [ ] 7.1 实现抓包导入页面和文件选择流程
+    - 覆盖需求：Requirement 14
+    - 支持 HAR、HTML、JSON 文件选择、导入批次创建和解析进度展示
+  - [ ] 7.2 实现 HAR、HTML、JSON 本地解析器
+    - 覆盖需求：Requirement 14
+    - 提取 URL、状态码、MIME 类型、响应时间、响应大小和文本响应片段
+  - [ ] 7.3 实现敏感字段脱敏服务
+    - 覆盖需求：Requirement 10、Requirement 14、Requirement 12
+    - 对 Cookie、Authorization、Token、Set-Cookie、手机号、邮箱和常见身份字段进行脱敏
+  - [ ] 7.4 实现候选内容识别和预览确认流程
+    - 覆盖需求：Requirement 8、Requirement 14、Requirement 15
+    - 将资讯、评论片段和热点列表映射为候选内容，用户确认后写入正式表
+  - [ ] 7.5 实现受限来源的本地临时查看状态
+    - 覆盖需求：Requirement 12、Requirement 14
+    - 对受限接口内容标记 `restricted_local_only` 并限制自动刷新
+  - [ ]* 7.6 编写抓包解析和脱敏测试
+    - 覆盖需求：Requirement 14、Requirement 10
+    - 验证 HAR 字段解析、敏感字段替换、候选内容识别和确认入库
+
+- [ ] 8. 实现猎奇内容识别、标签和展示偏好
+  - [ ] 8.1 实现猎奇关键词词典和分类规则
+    - 覆盖需求：Requirement 6、Requirement 15
+    - 支持异闻、奇闻、事故、未知生物、极端天气、异常事件、特殊科技和社会争议标签
+  - [ ] 8.2 实现可信度评分和低可信提示
+    - 覆盖需求：Requirement 6、Requirement 15
+    - 综合来源等级、来源数量、标题夸张度和转载链路生成评分
+  - [ ] 8.3 实现猎奇详情页和展示偏好设置
+    - 覆盖需求：Requirement 15
+    - 支持折叠低可信内容、隐藏惊悚内容和优先展示趣闻内容
+  - [ ]* 8.4 编写猎奇分类规则测试
+    - 覆盖需求：Requirement 6、Requirement 15
+    - 验证标签生成、可信度评分和展示偏好过滤
+
+- [ ] 9. 实现热点报告、关键词舆情分析和新闻推送
+  - [ ] 9.1 实现关键词抽取、主题聚类和热点评分服务
+    - 覆盖需求：Requirement 7、Requirement 8
+    - 基于来源数量、时间衰减、关键词频率、重复来源和分类加权生成热点主题
+  - [ ] 9.2 实现关键词检索服务和舆情线索聚合
+    - 覆盖需求：Requirement 8、Requirement 14
+    - 查询本地数据库、公开搜索接口和已确认导入候选内容
+  - [ ] 9.3 实现轻量情绪分析和热词展示
+    - 覆盖需求：Requirement 8
+    - 输出正向、中性、负向和未知统计结果
+  - [ ] 9.4 实现热点报告导出 Markdown 和 HTML
+    - 覆盖需求：Requirement 7
+    - 导出主题、代表资讯、来源数量、趋势方向和可信度提示
+  - [ ] 9.5 实现频道分类和区域识别服务
+    - 覆盖需求：Requirement 18、Requirement 19、Requirement 20
+    - 支持政策、金融、IT、互联网、娱乐、社会、交通、事故、天气、地震、安全、网络安全频道分类和地区标签识别
+  - [ ] 9.6 实现今日概览生成服务
+    - 覆盖需求：Requirement 18
+    - 按频道输出今日要点、代表来源、摘要、地区、时间、可信度评分和同主题聚合
+  - [ ] 9.7 实现政策信息抽取和区域切换页面
+    - 覆盖需求：Requirement 19
+    - 提取发布机关、文号、发布时间、生效时间、适用区域、政策主题和原文链接
+  - [ ] 9.8 实现本地事件、安全宣传和网络安全频道
+    - 覆盖需求：Requirement 20
+    - 聚合车祸、事故、消防、应急、反诈、交通安全、漏洞通告、数据泄露和安全厂商报告
+  - [ ] 9.9 实现订阅规则和新闻匹配服务
+    - 覆盖需求：Requirement 16、Requirement 18、Requirement 19、Requirement 20
+    - 支持关键词、分类、地区、来源、最低热度、最低可信度、推送频率和匹配原因记录
+  - [ ] 9.10 实现本地通知队列、聚合去重和免打扰策略
+    - 覆盖需求：Requirement 16、Requirement 17
+    - 支持桌面通知、应用内红点、系统托盘提醒、重复主题合并和普通通知延迟
+  - [ ] 9.11 实现推送中心页面和推送历史操作
+    - 覆盖需求：Requirement 17
+    - 支持未读、已读、聚合、延迟、失败记录查看，以及标记已读、稍后提醒和屏蔽相似内容
+  - [ ] 9.12 实现每日语录和情绪鼓励卡片
+    - 覆盖需求：Requirement 23、Requirement 24
+    - 支持本地语录库、语录风格、换一句、API 来源兜底和首页卡片展示
+  - [ ] 9.13 实现技术变化追踪服务
+    - 覆盖需求：Requirement 23、Requirement 25
+    - 支持 AI、开源、编程语言、框架、云服务、安全和大厂动态分类，以及 Release、CVE、Changelog 识别
+  - [ ]* 9.14 编写分析、频道和推送服务单元测试
+    - 覆盖需求：Requirement 7、Requirement 8、Requirement 16、Requirement 17、Requirement 18、Requirement 19、Requirement 20、Requirement 23、Requirement 24、Requirement 25
+    - 验证热点评分稳定性、关键词提取结果、频道分类、区域识别、政策字段提取、订阅匹配、聚合去重、语录兜底和技术变化识别
+
+- [ ] 10. 检查点 - 确保核心采集、网页接入、抓包导入、今日概览和新闻推送可用
+  - 确保所有测试通过,如有疑问请询问用户
+
+- [ ] 11. 实现个人使用增强功能
+  - [ ] 11.1 实现阅读状态、收藏和稍后看
+    - 覆盖需求：Requirement 26、Requirement 36
+    - 支持未读、已读、稍后看、收藏、已忽略、特别收藏网页，以及收藏页、稍后看页和特别收藏页签筛选
+  - [ ] 11.2 实现特别收藏网页页签
+    - 覆盖需求：Requirement 36
+    - 支持添加网页或站点、配置匹配范围、生成独立页签、只展示该网页信息、展示来源健康和规则测试入口
+  - [ ] 11.3 实现个人关注清单
+    - 覆盖需求：Requirement 27
+    - 支持关键词、公司、技术栈、城市、政策主题和人物关注项，以及匹配趋势展示
+  - [ ] 11.4 实现晨报和晚报生成服务
+    - 覆盖需求：Requirement 28
+    - 支持固定时间生成、本地报告历史、缺失来源提示和导出友好结构
+  - [ ] 11.5 实现本地全文搜索
+    - 覆盖需求：Requirement 29
+    - 支持 SQLite FTS5 或轻量索引、筛选、高亮和索引重建
+  - [ ] 11.6 实现数据导出服务
+    - 覆盖需求：Requirement 30
+    - 支持 Markdown、HTML、CSV、JSON、复制纯文本和敏感字段脱敏
+  - [ ] 11.7 实现备份与恢复
+    - 覆盖需求：Requirement 31
+    - 支持备份包创建、版本校验、保护快照、敏感配置处理和失败回滚
+  - [ ] 11.8 实现可信度解释
+    - 覆盖需求：Requirement 32
+    - 展示来源等级、来源数量、官方来源、转载情况、标题夸张度、时间新鲜度和扣分原因
+  - [ ] 11.9 实现来源健康度页面
+    - 覆盖需求：Requirement 33
+    - 展示成功率、失败次数、平均响应时间、最近成功时间、最近错误和来源测试结果
+  - [ ] 11.10 实现离线模式和待同步队列
+    - 覆盖需求：Requirement 34
+    - 支持离线缓存查看、联网任务排队、网络恢复后同步和缓存过期提示
+  - [ ] 11.11 实现隐私模式
+    - 覆盖需求：Requirement 35
+    - 暂停第三方 API 调用、可选 key 来源和工具箱 API 调试，关闭后恢复原有来源状态
+  - [ ]* 11.12 编写个人使用增强功能测试
+    - 覆盖需求：Requirement 26、Requirement 27、Requirement 28、Requirement 29、Requirement 30、Requirement 31、Requirement 32、Requirement 33、Requirement 34、Requirement 35、Requirement 36
+    - 验证阅读状态、特别收藏匹配、特别收藏页签、关注匹配、晨晚报生成、搜索索引、导出脱敏、备份恢复、可信度说明、来源健康、离线同步和隐私模式状态恢复
+
+- [ ] 12. 检查点 - 确保个人信息中枢和增强功能可用
+  - 确保所有测试通过,如有疑问请询问用户
+
+- [ ] 13. 实现 Windows exe 打包和发布配置
+  - [ ] 13.1 创建 PyInstaller `.spec` 文件和资源清单
+    - 覆盖需求：Requirement 11
+    - 包含图标、资源目录、默认配置、数据库迁移脚本和隐藏导入
+  - [ ] 13.2 实现首次运行向导和 API Key 配置提示
+    - 覆盖需求：Requirement 2、Requirement 10、Requirement 11、Requirement 23、Requirement 27、Requirement 35
+    - 引导用户配置天气位置、新闻来源、网页来源、关注清单、隐私模式和可选 API Key
+  - [ ] 13.3 实现打包后日志、错误提示和数据目录定位
+    - 覆盖需求：Requirement 1、Requirement 10、Requirement 11
+    - exe 运行失败时写入日志并展示可读错误
+  - [ ]* 13.4 编写打包 smoke test 脚本
+    - 覆盖需求：Requirement 11
+    - 验证 exe 启动、配置创建、数据库初始化和主窗口加载
+
+- [ ] 14. 最终检查点 - 确保所有测试通过
+  - 确保所有测试通过,如有疑问请询问用户

@@ -1,0 +1,22 @@
+[project]
+name = "news-intelligence-desktop"
+version = "0.2.0"
+description = "Local personal daily intelligence hub and API toolbox"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "feedparser>=6.0",
+    "beautifulsoup4>=4.12",
+    "jieba>=0.42",
+    "apscheduler>=3.10",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.6"]
+dev = ["pytest>=7.0", "pyinstaller>=6.0"]
+
+[project.scripts]
+news-intelligence = "news_intelligence_desktop.app.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
