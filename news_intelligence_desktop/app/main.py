@@ -75,6 +75,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("category"); p.add_argument("url")
     p.add_argument("--json", action="store_true")
 
+    p = sub.add_parser("list-feeds", help="List available RSS feeds")
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("tech-detect", help="Detect tech changes from articles")
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("policy-add", help="Add a policy item")
+    p.add_argument("title"); p.add_argument("--issuer", default=""); p.add_argument("--region", default="")
+    p.add_argument("--category", default=""); p.add_argument("--summary", default="")
+    p.add_argument("--source-url", default=""); p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("policy-list", help="List policy items")
+    p.add_argument("--region"); p.add_argument("--category"); p.add_argument("--json", action="store_true")
+
     return parser
 
 
@@ -165,6 +179,26 @@ def _dispatch(app: AppService, args: argparse.Namespace) -> int:
     elif cmd == "add-source":
         sid = app.source_mgr.create_source(args.name, args.type, args.category, args.url)
         _out(args, {"message": f"已添加来源：{args.name}", "id": sid})
+    elif cmd == "list-feeds":
+        from news_intelligence_desktop.connectors.extra_sources import MultiRssConnector
+        feeds = MultiRssConnector().list_available_feeds()
+        _out(args, {"message": f"共 {len(feeds)} 个可用 RSS 源", "feeds": feeds})
+    elif cmd == "tech-detect":
+        count = app.tech_service.detect_and_store()
+        _out(args, {"message": f"检测到 {count} 个技术变化", "count": count})
+    elif cmd == "policy-add":
+        from news_intelligence_desktop.services.policy_capture import PolicyService
+        policy_svc = PolicyService(app.repo)
+        pid = policy_svc.add_policy(
+            title=args.title, issuer=args.issuer, region=args.region,
+            category=args.category, summary=args.summary, source_url=args.source_url,
+        )
+        _out(args, {"message": f"已添加政策：{args.title}", "id": pid})
+    elif cmd == "policy-list":
+        from news_intelligence_desktop.services.policy_capture import PolicyService
+        policy_svc = PolicyService(app.repo)
+        policies = policy_svc.list_policies(region=args.region, category=args.category)
+        _out(args, {"message": f"共 {len(policies)} 条政策", "policies": policies})
     else:
         parser.print_help()
     return 0

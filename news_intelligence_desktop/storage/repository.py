@@ -42,6 +42,12 @@ class Repository:
                     ("36氪 RSS", "rss", "news", "https://36kr.com/feed"),
                     ("虎嗅 RSS", "rss", "news", "https://www.huxiu.com/rss/0.xml"),
                     ("GDELT", "api", "news", "https://api.gdeltproject.org/api/v2/doc/doc"),
+                    ("BBC中文 RSS", "rss", "news", "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"),
+                    ("Hacker News", "rss", "tech", "https://hnrss.org/frontpage"),
+                    ("少数派", "rss", "tech", "https://sspai.com/feed"),
+                    ("V2EX", "rss", "tech", "https://www.v2ex.com/index.xml"),
+                    ("DEV.to", "api", "tech", "https://dev.to/api"),
+                    ("Lobsters", "api", "tech", "https://lobste.rs"),
                 ]
                 conn.executemany("INSERT INTO source_configs(name, type, category, url) VALUES(?,?,?,?)", sources)
 

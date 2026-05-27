@@ -14,23 +14,33 @@ class Collector:
         self.repo = repo
 
     def collect_all(self) -> dict:
-        results = {"weather": 0, "earthquake": 0, "news": 0, "hot": 0, "errors": []}
+        results = {"weather": 0, "earthquake": 0, "news": 0, "hot": 0, "tech": 0, "errors": []}
+        
         try:
             results["weather"] = self._collect_weather()
         except Exception as e:
             results["errors"].append(f"weather: {e}")
+        
         try:
             results["earthquake"] = self._collect_earthquake()
         except Exception as e:
             results["errors"].append(f"earthquake: {e}")
+        
         try:
             results["news"] = self._collect_news()
         except Exception as e:
             results["errors"].append(f"news: {e}")
+        
         try:
             results["hot"] = self._collect_hot()
         except Exception as e:
             results["errors"].append(f"hot: {e}")
+        
+        try:
+            results["tech"] = self._collect_tech()
+        except Exception as e:
+            results["errors"].append(f"tech: {e}")
+        
         return results
 
     def _collect_weather(self) -> int:
@@ -67,31 +77,55 @@ class Collector:
 
     def _collect_news(self) -> int:
         from news_intelligence_desktop.connectors.news_rss import RssConnector
+        from news_intelligence_desktop.connectors.extra_sources import MultiRssConnector
+        
         rss = RssConnector()
-        feeds = [
-            ("https://36kr.com/feed", "36氪"),
-            ("https://www.huxiu.com/rss/0.xml", "虎嗅"),
-        ]
+        multi_rss = MultiRssConnector()
         total = 0
-        for url, name in feeds:
+        
+        # Basic feeds
+        feeds = [
+            ("https://36kr.com/feed", "36氪", "tech"),
+            ("https://www.huxiu.com/rss/0.xml", "虎嗅", "tech"),
+        ]
+        
+        for url, name, category in feeds:
             result = rss.fetch_feed(url, name)
             if result.ok:
                 for item in result.data:
                     self.repo.add_article(ArticleInput(
                         title=item["title"], summary=item.get("summary", ""),
                         source_name=item.get("source_name", name), source_url=url,
-                        url=item["url"], category=item.get("category", "news"),
+                        url=item["url"], category=item.get("category", category),
                         published_at=item.get("published_at"),
                     ))
                 total += len(result.data)
             else:
                 logger.warning("RSS %s failed: %s", name, result.error)
+        
+        # Additional feeds from MultiRssConnector
+        additional_feeds = ["bbc_zh", "hackernews", "sspai", "v2ex"]
+        for feed_key in additional_feeds:
+            result = multi_rss.fetch_feed(feed_key)
+            if result.ok:
+                for item in result.data[:15]:  # Limit per feed
+                    self.repo.add_article(ArticleInput(
+                        title=item["title"], summary=item.get("summary", ""),
+                        source_name=item.get("source_name", feed_key), source_url=item.get("source_url", ""),
+                        url=item["url"], category=item.get("category", "news"),
+                        published_at=item.get("published_at"), language=item.get("language", "en"),
+                    ))
+                total += len(result.data[:15])
+            else:
+                logger.warning("RSS %s failed: %s", feed_key, result.error)
+        
         return total
 
     def _collect_hot(self) -> int:
         from news_intelligence_desktop.connectors.news_rss import VvhanConnector
         conn = VvhanConnector()
         total = 0
+        
         for type_ in ["hot", "weibo"]:
             result = conn.fetch_hot(type_)
             if result.ok:
@@ -103,4 +137,40 @@ class Collector:
                         category="hot", importance_score=0.7,
                     ))
                 total += len(result.data[:15])
+        
+        return total
+
+    def _collect_tech(self) -> int:
+        from news_intelligence_desktop.connectors.extra_sources import DevToConnector, LobstersConnector, ArxivConnector
+        
+        total = 0
+        
+        # DEV.to articles
+        devto = DevToConnector()
+        result = devto.fetch_articles(top=15)
+        if result.ok:
+            for item in result.data:
+                self.repo.add_article(ArticleInput(
+                    title=item["title"], summary=item.get("summary", ""),
+                    source_name="DEV.to", source_url=item.get("source_url", ""),
+                    url=item["url"], category="tech",
+                    published_at=item.get("published_at"), tags=item.get("tags", ""),
+                    language=item.get("language", "en"),
+                ))
+            total += len(result.data)
+        
+        # Lobsters
+        lobsters = LobstersConnector()
+        result = lobsters.fetch_hot(limit=10)
+        if result.ok:
+            for item in result.data:
+                self.repo.add_article(ArticleInput(
+                    title=item["title"], summary=item.get("summary", ""),
+                    source_name="Lobsters", source_url=item.get("source_url", ""),
+                    url=item["url"], category="tech",
+                    published_at=item.get("published_at"), tags=item.get("tags", ""),
+                    language=item.get("language", "en"),
+                ))
+            total += len(result.data)
+        
         return total

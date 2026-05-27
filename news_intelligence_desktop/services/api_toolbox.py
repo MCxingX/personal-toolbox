@@ -21,15 +21,37 @@ class ApiToolboxService:
             if count > 0:
                 return
             apis = [
+                # 韩小韩 API
                 ("韩小韩-热榜", "vvhan", "热榜", "聚合热榜数据", "No", 1, "unknown", "", "https://api.vvhan.com/api/hotlist/{type}", "enabled", "free", 60, "json"),
                 ("韩小韩-天气", "vvhan", "天气", "天气查询", "No", 1, "unknown", "", "https://api.vvhan.com/api/weather", "enabled", "free", 60, "json"),
                 ("韩小韩-笑话", "vvhan", "娱乐", "随机笑话", "No", 1, "unknown", "", "https://api.vvhan.com/api/joke", "enabled", "free", 60, "json"),
+                ("韩小韩-每日一言", "vvhan", "语录", "每日一言", "No", 1, "unknown", "", "https://api.vvhan.com/api/ian", "enabled", "free", 60, "json"),
+                ("韩小韩-随机壁纸", "vvhan", "图片", "随机壁纸", "No", 1, "unknown", "", "https://api.vvhan.com/api/bing", "enabled", "free", 60, "json"),
+                
+                # 枫雨 API
                 ("枫雨-今日热门", "yuafeng", "热榜", "今日热门聚合", "apiKey", 1, "unknown", "", "https://api-v2.yuafeng.cn/API/jinri_hot.php", "needs_config", "requires_key", 30, "json"),
                 ("枫雨-腾讯新闻", "yuafeng", "新闻", "腾讯新闻热搜", "apiKey", 1, "unknown", "", "https://api-v2.yuafeng.cn/API/txxw.php", "needs_config", "requires_key", 30, "json"),
                 ("枫雨-文本审核", "yuafeng", "AI", "AI文本审核", "apiKey", 1, "unknown", "", "https://api-v2.yuafeng.cn/API/aiwenben.php", "needs_config", "requires_key", 30, "json"),
+                ("枫雨-天气查询", "yuafeng", "天气", "天气查询", "apiKey", 1, "unknown", "", "https://api-v2.yuafeng.cn/API/tianqi.php", "needs_config", "requires_key", 30, "json"),
+                ("枫雨-每日一言", "yuafeng", "语录", "每日一言", "apiKey", 1, "unknown", "", "https://api-v2.yuafeng.cn/API/yiyan.php", "needs_config", "requires_key", 30, "json"),
+                
+                # 免费 API
                 ("Open-Meteo", "open-meteo", "天气", "免费天气API", "No", 1, "yes", "https://open-meteo.com/en/docs", "https://api.open-meteo.com/v1/forecast", "enabled", "free", 60, "json"),
                 ("USGS地震", "usgs", "地震", "全球地震数据", "No", 1, "yes", "https://earthquake.usgs.gov/fdsnws/event/1/", "https://earthquake.usgs.gov/fdsnws/event/1/query", "enabled", "free", 60, "json"),
                 ("GDELT", "gdelt", "新闻", "全球新闻搜索", "No", 1, "unknown", "https://blog.gdeltproject.org/gdelt-doc-2-0-api-discovery/", "https://api.gdeltproject.org/api/v2/doc/doc", "enabled", "free", 30, "json"),
+                ("一言", "hitokoto", "语录", "随机语录API", "No", 1, "yes", "https://hitokoto.cn/api", "https://v1.hitokoto.cn", "enabled", "free", 60, "json"),
+                ("DEV.to", "devto", "技术", "开发者社区API", "No", 1, "yes", "https://developers.forem.com/api", "https://dev.to/api", "enabled", "free", 30, "json"),
+                ("Lobsters", "lobsters", "技术", "技术链接分享", "No", 1, "yes", "https://lobste.rs/about", "https://lobste.rs", "enabled", "free", 30, "json"),
+                ("arXiv", "arxiv", "学术", "学术论文搜索", "No", 1, "yes", "https://info.arxiv.org/help/api/index.html", "http://export.arxiv.org/api/query", "enabled", "free", 30, "atom"),
+                ("Wikipedia", "wikipedia", "知识", "维基百科API", "No", 1, "yes", "https://www.mediawiki.org/wiki/API:Main_page", "https://en.wikipedia.org/api/rest_v1", "enabled", "free", 60, "json"),
+                ("Open Library", "openlibrary", "图书", "开放图书馆API", "No", 1, "yes", "https://openlibrary.org/developers/api", "https://openlibrary.org", "enabled", "free", 60, "json"),
+                ("GitHub API", "github", "技术", "GitHub公开API", "No", 1, "yes", "https://docs.github.com/en/rest", "https://api.github.com", "enabled", "free", 60, "json"),
+                ("JSONPlaceholder", "jsonplaceholder", "测试", "测试用REST API", "No", 1, "yes", "https://jsonplaceholder.typicode.com/", "https://jsonplaceholder.typicode.com", "enabled", "free", 60, "json"),
+                
+                # 需要 Key 的 API
+                ("NewsAPI", "newsapi", "新闻", "全球新闻聚合", "apiKey", 1, "yes", "https://newsapi.org/docs", "https://newsapi.org/v2", "needs_config", "requires_key", 100, "json"),
+                ("天行数据", "tianapi", "综合", "国内数据服务", "apiKey", 1, "unknown", "https://www.tianapi.com/apiview", "https://apis.tianapi.com", "needs_config", "requires_key", 30, "json"),
+                ("聚合数据", "juhe", "综合", "国内数据服务", "apiKey", 1, "unknown", "https://www.juhe.cn/docs", "https://apis.juhe.cn", "needs_config", "requires_key", 30, "json"),
             ]
             for api in apis:
                 conn.execute(

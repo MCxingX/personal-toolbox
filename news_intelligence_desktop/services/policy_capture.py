@@ -63,7 +63,7 @@ class CaptureImportService:
                     time_ms = entry.get("time", 0)
                     size = resp.get("content", {}).get("size", 0)
                     body = resp.get("content", {}).get("text", "")[:5000]
-                    headers = json.dumps(dict(h.get("name", ""): h.get("value", "") for h in req.get("headers", [])), ensure_ascii=False)
+                    headers = json.dumps({h.get("name", ""): h.get("value", "") for h in req.get("headers", [])}, ensure_ascii=False)
                     conn.execute(
                         "INSERT INTO captured_exchanges(import_batch, url, method, status_code, mime_type, response_time_ms, response_size, request_headers, response_body) VALUES(?,?,?,?,?,?,?,?,?)",
                         (batch_name or path.name, url, method, status, mime, time_ms, size, headers, body),
