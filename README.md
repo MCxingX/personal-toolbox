@@ -24,15 +24,49 @@
 - 隐私模式
 - 离线模式
 
-## 运行
+## 快速开始
+
+### 安装依赖
 
 ```bash
+pip install requests feedparser beautifulsoup4 jieba apscheduler
+pip install PySide6  # 图形界面（可选）
+```
+
+### 启动应用
+
+```bash
+# 图形界面（推荐，点击按钮即可）
+python3 -m news_intelligence_desktop.app.main
+
 # 控制台交互界面
 python3 -m news_intelligence_desktop.app.main --console
 
 # JSON 输出首页
 python3 -m news_intelligence_desktop.app.main --json
+```
 
+### 图形界面功能
+
+启动后，左侧有导航栏，点击按钮即可切换页面：
+
+| 按钮 | 功能 |
+|------|------|
+| 首页总览 | 查看今日信息汇总卡片 |
+| 天气预报 | 查看 7 天天气 |
+| 地震动态 | 查看全球地震 |
+| 新闻资讯 | 浏览新闻，支持分类筛选 |
+| 每日语录 | 获取鼓励/幽默/技术语录 |
+| 技术变化 | 追踪技术更新 |
+| API 工具箱 | 查看可用 API |
+| 搜索 | 全文搜索本地内容 |
+| 个人中心 | 收藏、稍后看、隐私模式 |
+| 来源管理 | 查看数据源状态 |
+| 一键采集 | 后台自动采集所有数据 |
+
+## 命令行用法
+
+```bash
 # 采集数据
 python3 -m news_intelligence_desktop.app.main collect
 
@@ -81,6 +115,16 @@ python3 -m news_intelligence_desktop.app.main rebuild-index
 
 # 添加来源
 python3 -m news_intelligence_desktop.app.main add-source 36氪 rss news https://36kr.com/feed
+
+# 列出 RSS 源
+python3 -m news_intelligence_desktop.app.main list-feeds
+
+# 检测技术变化
+python3 -m news_intelligence_desktop.app.main tech-detect
+
+# 政策管理
+python3 -m news_intelligence_desktop.app.main policy-add "数据安全法" --issuer 全国人大 --region national
+python3 -m news_intelligence_desktop.app.main policy-list --region national
 ```
 
 ## 测试
@@ -104,3 +148,60 @@ pyinstaller news_intelligence.spec
 ```bash
 python3 -m news_intelligence_desktop.app.main --data-dir /tmp/news-intel --console
 ```
+
+## 项目结构
+
+```
+news_intelligence_desktop/
+├── app/
+│   ├── __init__.py
+│   └── main.py              # 主入口（命令行解析）
+├── config/
+│   ├── __init__.py
+│   └── settings.py          # 配置管理
+├── connectors/
+│   ├── __init__.py          # 基础连接器
+│   ├── weather_earthquake.py # 天气/地震
+│   ├── news_rss.py          # RSS/韩小韩/GDELT
+│   ├── quote_rss.py         # 语录/RSS
+│   ├── optional_api.py      # 天行/聚合
+│   ├── web_page.py          # 网页抓取
+│   ├── generic_api.py       # 通用 API
+│   └── extra_sources.py     # 扩展数据源
+├── services/
+│   ├── __init__.py
+│   ├── app_service.py       # 应用服务（组装）
+│   ├── collector.py         # 数据采集
+│   ├── source_manager.py    # 来源管理
+│   ├── daily_quote.py       # 每日语录
+│   ├── tech_change.py       # 技术变化
+│   ├── home_dashboard.py    # 首页仪表盘
+│   ├── brief.py             # 晨报/晚报
+│   ├── notification.py      # 通知管理
+│   ├── api_toolbox.py       # API 工具箱
+│   ├── personal.py          # 个人中心
+│   ├── enhanced_services.py # 搜索/导出/备份
+│   ├── policy_capture.py    # 政策/抓包/地区
+│   └── oddity.py            # 猎奇内容
+├── storage/
+│   ├── __init__.py
+│   ├── database.py          # 数据库 Schema
+│   └── repository.py        # 数据访问层
+├── analysis/
+│   └── __init__.py          # 关键词/情感/分类
+└── ui/
+    ├── __init__.py
+    ├── console.py           # 控制台 UI
+    ├── gui.py               # PySide6 图形界面
+    └── qt_app.py            # Qt 应用（旧版）
+```
+
+## 技术栈
+
+- Python 3.11+
+- SQLite FTS5（全文搜索）
+- requests / feedparser / beautifulsoup4
+- jieba（中文分词）
+- APScheduler（定时任务）
+- PySide6（图形界面，可选）
+- PyInstaller（打包 exe）
