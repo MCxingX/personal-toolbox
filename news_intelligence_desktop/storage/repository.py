@@ -33,23 +33,53 @@ class Repository:
     def seed_defaults(self) -> None:
         with self.db.connect() as conn:
             count = conn.execute("SELECT COUNT(*) AS c FROM source_configs").fetchone()["c"]
+            sources = [
+                ("Open-Meteo", "api", "weather", "https://open-meteo.com/"),
+                ("USGS Earthquake", "api", "earthquake", "https://earthquake.usgs.gov/"),
+                ("GitHub Trending", "web", "tech", "https://github.com/trending"),
+                ("韩小韩 API", "api", "hot", "https://api.vvhan.com/"),
+                ("GDELT", "api", "news", "https://api.gdeltproject.org/api/v2/doc/doc"),
+                ("DEV.to", "api", "tech", "https://dev.to/api"),
+                ("Lobsters", "api", "tech", "https://lobste.rs"),
+                ("CEIC地震台网", "rss", "earthquake", "http://news.ceic.ac.cn/rss"),
+                ("百度新闻", "api", "news", "https://news.baidu.com"),
+                # 国内综合新闻
+                ("澎湃新闻", "rss", "news", "https://www.thepaper.cn/rss_newsDetail.jsp"),
+                ("中国新闻网", "rss", "news", "https://www.chinanews.com.cn/rss/scroll-news.xml"),
+                ("财新", "rss", "news", "https://www.caixin.com/rss/"),
+                ("新浪国内", "rss", "news", "http://rss.sina.com.cn/news/china/focus15.xml"),
+                ("凤凰资讯", "rss", "news", "http://news.ifeng.com/rss/news.xml"),
+                ("腾讯新闻", "rss", "news", "http://www.qq.com/rss/"),
+                ("联合早报", "rss", "news", "https://www.zaobao.com/rss"),
+                ("环球时报", "rss", "news", "https://rss.huanqiu.com/rss/china.xml"),
+                ("中国日报", "rss", "news", "http://www.chinadaily.com.cn/rss/china_rss.xml"),
+                ("广州日报", "rss", "news", "http://www.gzdaily.com/rss/gzb.xml"),
+                ("经济观察报", "rss", "news", "http://www.eeo.com.cn/rss/rss.xml"),
+                # 政策
+                ("人民网", "rss", "policy", "http://www.people.com.cn/rss/politics.xml"),
+                # 科技
+                ("36氪", "rss", "tech", "https://36kr.com/feed"),
+                ("IT之家", "rss", "tech", "https://www.ithome.com/rss/"),
+                ("开源中国", "rss", "tech", "https://www.oschina.net/news/rss"),
+                ("InfoQ中文", "rss", "tech", "https://www.infoq.cn/feed"),
+                ("凤凰科技", "rss", "tech", "http://tech.ifeng.com/rss/tech.xml"),
+                ("环球网科技", "rss", "tech", "https://rss.huanqiu.com/rss/tech.xml"),
+                ("少数派", "rss", "tech", "https://sspai.com/feed"),
+                # 安全
+                ("FreeBuf", "rss", "security", "https://www.freebuf.com/feed"),
+                # 财经
+                ("环球网财经", "rss", "finance", "https://rss.huanqiu.com/rss/finance.xml"),
+                # 军事
+                ("凤凰军事", "rss", "military", "http://mil.ifeng.com/rss/mil.xml"),
+                ("环球网军事", "rss", "military", "https://rss.huanqiu.com/rss/mil.xml"),
+            ]
             if count == 0:
-                sources = [
-                    ("Open-Meteo", "api", "weather", "https://open-meteo.com/"),
-                    ("USGS Earthquake", "api", "earthquake", "https://earthquake.usgs.gov/"),
-                    ("GitHub Trending", "web", "tech", "https://github.com/trending"),
-                    ("韩小韩 API", "api", "hot", "https://api.vvhan.com/"),
-                    ("36氪 RSS", "rss", "news", "https://36kr.com/feed"),
-                    ("虎嗅 RSS", "rss", "news", "https://www.huxiu.com/rss/0.xml"),
-                    ("GDELT", "api", "news", "https://api.gdeltproject.org/api/v2/doc/doc"),
-                    ("BBC中文 RSS", "rss", "news", "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"),
-                    ("Hacker News", "rss", "tech", "https://hnrss.org/frontpage"),
-                    ("少数派", "rss", "tech", "https://sspai.com/feed"),
-                    ("V2EX", "rss", "tech", "https://www.v2ex.com/index.xml"),
-                    ("DEV.to", "api", "tech", "https://dev.to/api"),
-                    ("Lobsters", "api", "tech", "https://lobste.rs"),
-                ]
                 conn.executemany("INSERT INTO source_configs(name, type, category, url) VALUES(?,?,?,?)", sources)
+            else:
+                for source in sources:
+                    exists = conn.execute("SELECT 1 FROM source_configs WHERE name=?", (source[0],)).fetchone()
+                    if not exists:
+                        conn.execute("INSERT INTO source_configs(name, type, category, url) VALUES(?,?,?,?)", source)
 
             articles = conn.execute("SELECT COUNT(*) AS c FROM articles").fetchone()["c"]
             if articles == 0:
@@ -59,27 +89,31 @@ class Repository:
             quotes = conn.execute("SELECT COUNT(*) AS c FROM daily_quotes").fetchone()["c"]
             if quotes == 0:
                 default_quotes = [
-                    ("你已经在认真生活了，今天也可以轻一点。", "", "encourage"),
-                    ("不必事事完美，能走到这里已经很好了。", "", "comfort"),
-                    ("今天也是元气满满的一天！", "", "happy"),
-                    ("代码写不出来的时候，先去喝杯水。", "", "tech"),
-                    ("人生苦短，我用 Python。", "Tim Peters", "tech"),
-                    ("Talk is cheap. Show me the code.", "Linus Torvalds", "tech"),
-                    ("每一个不曾起舞的日子，都是对生命的辜负。", "尼采", "philosophy"),
-                    ("先完成，再完美。", "", "encourage"),
-                    ("没有 bug 的代码是不存在的，包括这段话。", "", "humor"),
-                    ("种一棵树最好的时间是十年前，其次是现在。", "", "encourage"),
+                    ("先定义问题，再寻找答案。", "", "thinking", "很多低效来自解错问题。", "把当前最烦的事改写成一个可执行问题。"),
+                    ("复盘只问三件事：发生了什么、为什么、下次怎么做。", "", "productivity", "复盘面向改进，而非自责。", "用 3 行写完今天一次小复盘。"),
+                    ("阅读新闻时区分事实、观点、推测。", "", "media", "事实可核验，观点需辨别立场，推测需要等待证据。", "打开一篇新闻，标出一句事实和一句观点。"),
                 ]
-                for content, author, style in default_quotes:
-                    conn.execute("INSERT INTO daily_quotes(content, author, source, style) VALUES(?,?,?,?)", (content, author, "local", style))
+                for content, author, style, lesson, action in default_quotes:
+                    conn.execute("INSERT INTO daily_quotes(content, author, source, style, lesson, action) VALUES(?,?,?,?,?,?)", (content, author, "local", style, lesson, action))
 
             conn.execute("INSERT OR IGNORE INTO privacy_mode_state(id, enabled) VALUES(1, 0)")
+
+    def get_source_id(self, name: str) -> int | None:
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT id FROM source_configs WHERE name=?", (name,)).fetchone()
+            return int(row["id"]) if row else None
 
     def add_article(self, article: ArticleInput) -> int:
         with self.db.connect() as conn:
             return self._insert_article(conn, article)
 
     def _insert_article(self, conn, article: ArticleInput) -> int:
+        duplicate = conn.execute(
+            "SELECT id FROM articles WHERE title=? AND source_name=?",
+            (article.title, article.source_name),
+        ).fetchone()
+        if duplicate:
+            return int(duplicate["id"])
         conn.execute(
             """INSERT OR IGNORE INTO articles(title, summary, content, source_name, source_url, url, category, tags, published_at, credibility_score, importance_score, region, channel, language)
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -103,10 +137,20 @@ class Repository:
         if category:
             sql += " WHERE category=?"
             params.append(category)
-        sql += " ORDER BY COALESCE(published_at, collected_at) DESC, id DESC LIMIT ?"
+        # 优先按 collected_at DESC 排序，确保最新采集的内容排前面
+        sql += " ORDER BY collected_at DESC, COALESCE(published_at, '') DESC, id DESC LIMIT ?"
         params.append(limit)
         with self.db.connect() as conn:
             return [dict(row) for row in conn.execute(sql, params)]
+
+    def count_articles(self, category: str | None = None) -> int:
+        sql = "SELECT COUNT(*) AS c FROM articles"
+        params: list = []
+        if category:
+            sql += " WHERE category=?"
+            params.append(category)
+        with self.db.connect() as conn:
+            return int(conn.execute(sql, params).fetchone()["c"])
 
     def get_article(self, article_id: int) -> dict | None:
         with self.db.connect() as conn:
@@ -144,6 +188,15 @@ class Repository:
         if score >= 0.5:
             return f"可信度中等：来源 {source} 可用，建议结合原始链接确认。"
         return f"待确认：来源 {source} 支撑较弱。"
+
+    def get_pref(self, key: str, default: str = "") -> str:
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT value FROM user_prefs WHERE key=?", (key,)).fetchone()
+            return row["value"] if row else default
+
+    def set_pref(self, key: str, value: str) -> None:
+        with self.db.connect() as conn:
+            conn.execute("INSERT INTO user_prefs(key, value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
 
 
 def default_articles() -> list[ArticleInput]:

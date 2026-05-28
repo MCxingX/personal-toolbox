@@ -18,12 +18,28 @@ class TechChangeService:
             result = detect_tech_change(art["title"], art.get("summary", ""))
             if result:
                 with self.repo.db.connect() as conn:
-                    conn.execute(
-                        "INSERT INTO tech_changes(title, summary, channel, impact, source_url, source_name, change_type, published_at, importance) VALUES(?,?,?,?,?,?,?,?,?)",
-                        (art["title"], art.get("summary", ""), ",".join(result["change_types"]), "", art.get("url", ""), art.get("source_name", ""), ",".join(result["change_types"]), art.get("published_at"), result["importance"]),
-                    )
-                count += 1
+                    exists = conn.execute("SELECT id FROM tech_changes WHERE source_url=?", (art.get("url", ""),)).fetchone()
+                    if exists:
+                        conn.execute(
+                            "UPDATE tech_changes SET title=?, summary=?, channel=?, source_name=?, change_type=?, published_at=?, importance=? WHERE id=?",
+                            (art["title"], art.get("summary", ""), ",".join(result["change_types"]), art.get("source_name", ""), ",".join(result["change_types"]), art.get("published_at"), result["importance"], exists["id"]),
+                        )
+                    else:
+                        conn.execute(
+                            "INSERT INTO tech_changes(title, summary, channel, impact, source_url, source_name, change_type, published_at, importance) VALUES(?,?,?,?,?,?,?,?,?)",
+                            (art["title"], art.get("summary", ""), ",".join(result["change_types"]), "", art.get("url", ""), art.get("source_name", ""), ",".join(result["change_types"]), art.get("published_at"), result["importance"]),
+                        )
+                        count += 1
         return count
+
+    def count_changes(self, channel: str | None = None) -> int:
+        with self.repo.db.connect() as conn:
+            sql = "SELECT COUNT(*) AS c FROM tech_changes"
+            params: list = []
+            if channel:
+                sql += " WHERE channel LIKE ?"
+                params.append(f"%{channel}%")
+            return int(conn.execute(sql, params).fetchone()["c"])
 
     def list_changes(self, channel: str | None = None, limit: int = 50) -> list[dict]:
         with self.repo.db.connect() as conn:

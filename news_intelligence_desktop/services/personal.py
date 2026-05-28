@@ -107,7 +107,7 @@ class PersonalService:
         with self.repo.db.connect() as conn:
             if enabled:
                 states = {str(r["id"]): r["enabled"] for r in conn.execute("SELECT id, enabled FROM source_configs")}
-                conn.execute("UPDATE source_configs SET enabled=0 WHERE type='api'")
+                conn.execute("UPDATE source_configs SET enabled=0")
                 conn.execute("INSERT OR REPLACE INTO privacy_mode_state(id,enabled,previous_source_state,updated_at) VALUES(1,1,?,CURRENT_TIMESTAMP)", (json.dumps(states),))
             else:
                 row = conn.execute("SELECT previous_source_state FROM privacy_mode_state WHERE id=1").fetchone()

@@ -13,15 +13,26 @@ class SearchService:
         self.repo = repo
 
     def search(self, query: str, limit: int = 50) -> list[dict]:
+        safe_query = self._safe_fts_query(query)
+        if not safe_query:
+            return []
         with self.repo.db.connect() as conn:
             try:
                 rows = conn.execute(
                     "SELECT s.item_type, s.item_id, s.title, snippet(search_index, 3, '[', ']', '...', 8) AS snippet FROM search_index s WHERE search_index MATCH ? ORDER BY rank LIMIT ?",
-                    (query, limit),
+                    (safe_query, limit),
                 ).fetchall()
                 return [dict(row) for row in rows]
             except Exception:
                 return []
+
+    def _safe_fts_query(self, query: str) -> str:
+        terms = []
+        for term in query.replace('"', ' ').replace("'", " ").split():
+            cleaned = "".join(ch for ch in term if ch.isalnum() or '\u4e00' <= ch <= '\u9fff')
+            if cleaned:
+                terms.append(f'"{cleaned}"')
+        return " OR ".join(terms)
 
     def rebuild_index(self) -> int:
         count = 0

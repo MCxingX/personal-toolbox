@@ -59,12 +59,23 @@ class TestAppCore(unittest.TestCase):
         q = self.app.quote_service.get_home_quote()
         self.assertIn("content", q)
         self.assertIn("style_label", q)
+        self.assertTrue(q.get("lesson") or q.get("action"))
         styles = self.app.quote_service.list_styles()
         self.assertTrue(len(styles) >= 5)
+        self.assertTrue(any(s.get("count", 0) >= 3 for s in styles))
+
+    def test_daily_quote_rotates_by_shown_count(self):
+        first = self.app.quote_service.get_quote()
+        second = self.app.quote_service.get_quote()
+        self.assertNotEqual(first.get("id"), second.get("id"))
 
     def test_tech_changes(self):
         count = self.app.tech_service.detect_and_store()
         self.assertIsInstance(count, int)
+        total = self.app.tech_service.count_changes()
+        again = self.app.tech_service.detect_and_store()
+        self.assertEqual(self.app.tech_service.count_changes(), total)
+        self.assertEqual(again, 0)
 
     def test_search(self):
         results = self.app.search("AI")
@@ -74,6 +85,37 @@ class TestAppCore(unittest.TestCase):
         brief = self.app.generate_brief("晨报")
         self.assertIn("晨报", brief["title"])
         self.assertIn("body", brief)
+        self.assertIn("来源：", brief["body"])
+        self.assertIn("重点：", brief["body"])
+
+    def test_quote_author_none_is_safe(self):
+        with patch("news_intelligence_desktop.connectors.quote_rss.QuoteConnector.fetch_hitokoto") as mocked:
+            mocked.return_value = MagicMock(ok=True, data=[{"content": "测试空作者", "author": None, "source": None}], response_ms=1)
+            count = self.app.collector._collect_quotes()
+        self.assertEqual(count, 1)
+        q = self.app.quote_service.get_quote()
+        self.assertIn("content", q)
+
+    def test_city_catalog_contains_guangxi(self):
+        from news_intelligence_desktop.config.china_cities import PROVINCE_CITIES, city_coords
+        self.assertIn("广西壮族自治区", PROVINCE_CITIES)
+        self.assertIn("南宁", PROVINCE_CITIES["广西壮族自治区"])
+        self.assertIsInstance(city_coords("南宁"), tuple)
+
+    def test_news_quality_enriches_summary(self):
+        from news_intelligence_desktop.services.news_quality import enrich_summary, importance_score
+        summary = enrich_summary("工厂爆炸失踪9人", "美国工厂爆炸，失踪9人已无生还希望，可能造成11人死亡。")
+        self.assertIn("看点", summary)
+        self.assertGreater(importance_score("工厂爆炸失踪9人", summary, "news", "央视新闻"), 0.6)
+
+    def test_duplicate_title_same_source_is_ignored(self):
+        first = self.app.repo.add_article(ArticleInput(
+            title="重复标题", summary="第一次", source_name="测试源", source_url="https://example.com/rss", url="https://example.com/a", category="news",
+        ))
+        second = self.app.repo.add_article(ArticleInput(
+            title="重复标题", summary="第二次", source_name="测试源", source_url="https://example.com/rss", url="https://example.com/b", category="news",
+        ))
+        self.assertEqual(first, second)
 
     def test_export(self):
         articles = self.app.repo.list_articles(limit=1)

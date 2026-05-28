@@ -205,3 +205,46 @@ news_intelligence_desktop/
 - APScheduler（定时任务）
 - PySide6（图形界面，可选）
 - PyInstaller（打包 exe）
+
+---
+
+## 🔑 第三方 API 配置
+
+### TopHubData 热榜 API
+
+本项目支持通过 TopHubData API 获取全网各平台热榜数据（微博、知乎、抖音、B站等）。
+
+#### 获取 API Key
+
+1. 访问 [https://www.tophubdata.com](https://www.tophubdata.com)
+2. 注册账号
+3. 在个人中心获取 API Key
+
+#### 在软件中配置
+
+1. 打开应用，点击菜单 **「设置」→「API 配置」**
+2. 在 **TopHub API Key** 栏填入你的 Key
+3. 点击 **「保存」**
+
+> **安全提示**：API Key 仅存储在您的本地 SQLite 数据库中，不会硬编码到代码里，也不会上传到任何服务器。即使项目代码公开在 GitHub，您的 Key 也是安全的。
+
+#### 接口说明
+
+| 接口 | 限制 | 费用 |
+|------|------|------|
+| 全部榜单列表 | 每天 1000 次 | 免费 |
+| 榜单详情 | 每天 1000 次 | 免费 |
+
+#### 可用榜单（示例）
+
+| 榜单 | 说明 |
+|------|------|
+| 微博热搜 | 微博实时热搜话题 |
+| 知乎热榜 | 知乎每日热榜 |
+| 抖音热榜 | 抖音热门话题 |
+| B站热榜 | B站热门视频 |
+| 百度热搜 | 百度热搜榜 |
+| 今日头条 | 头条热门资讯 |
+| 豆瓣热榜 | 豆瓣热门话题 |
+
+> 完整榜单列表请以 TopHubData 官网为准：[https://www.tophubdata.com/documentation](https://www.tophubdata.com/documentation)

@@ -17,6 +17,7 @@ class Database:
         conn = sqlite3.connect(str(self.path))
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 5000")
         try:
             yield conn
             conn.commit()
@@ -29,9 +30,36 @@ class Database:
     def initialize(self) -> None:
         with self.connect() as conn:
             conn.executescript(SCHEMA_SQL)
+            self._migrate(conn)
             current = conn.execute("SELECT value FROM app_meta WHERE key='schema_version'").fetchone()
             if current is None:
                 conn.execute("INSERT INTO app_meta(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
+
+    def _migrate(self, conn: sqlite3.Connection) -> None:
+        def columns(table: str) -> set[str]:
+            return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+        weather_cols = columns("weather_forecasts")
+        if "weathercode" not in weather_cols:
+            conn.execute("ALTER TABLE weather_forecasts ADD COLUMN weathercode INTEGER DEFAULT 0")
+
+        api_cols = columns("api_catalog")
+        if "api_kind" not in api_cols:
+            conn.execute("ALTER TABLE api_catalog ADD COLUMN api_kind TEXT NOT NULL DEFAULT 'built_in'")
+        if "api_key" not in api_cols:
+            conn.execute("ALTER TABLE api_catalog ADD COLUMN api_key TEXT NOT NULL DEFAULT ''")
+        if "target_module" not in api_cols:
+            conn.execute("ALTER TABLE api_catalog ADD COLUMN target_module TEXT NOT NULL DEFAULT ''")
+
+        quote_cols = columns("daily_quotes")
+        if "lesson" not in quote_cols:
+            conn.execute("ALTER TABLE daily_quotes ADD COLUMN lesson TEXT NOT NULL DEFAULT ''")
+        if "action" not in quote_cols:
+            conn.execute("ALTER TABLE daily_quotes ADD COLUMN action TEXT NOT NULL DEFAULT ''")
+        if "shown_count" not in quote_cols:
+            conn.execute("ALTER TABLE daily_quotes ADD COLUMN shown_count INTEGER NOT NULL DEFAULT 0")
+        if "last_shown_at" not in quote_cols:
+            conn.execute("ALTER TABLE daily_quotes ADD COLUMN last_shown_at TEXT")
 
 
 SCHEMA_SQL = """
@@ -98,6 +126,7 @@ CREATE TABLE IF NOT EXISTS weather_forecasts(
     temp_high REAL,
     temp_low REAL,
     description TEXT NOT NULL DEFAULT '',
+    weathercode INTEGER DEFAULT 0,
     raw_json TEXT NOT NULL DEFAULT '{}',
     source TEXT NOT NULL DEFAULT 'open-meteo',
     collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -246,6 +275,12 @@ CREATE TABLE IF NOT EXISTS privacy_mode_state(
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS user_prefs(
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS notifications(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -286,6 +321,9 @@ CREATE TABLE IF NOT EXISTS api_catalog(
     risk_tags TEXT NOT NULL DEFAULT '',
     default_rate_limit INTEGER NOT NULL DEFAULT 60,
     output_type TEXT NOT NULL DEFAULT 'json',
+    api_kind TEXT NOT NULL DEFAULT 'built_in',
+    api_key TEXT NOT NULL DEFAULT '',
+    target_module TEXT NOT NULL DEFAULT '',
     params_schema TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -309,6 +347,10 @@ CREATE TABLE IF NOT EXISTS daily_quotes(
     author TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT 'local',
     style TEXT NOT NULL DEFAULT 'encourage',
+    lesson TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL DEFAULT '',
+    shown_count INTEGER NOT NULL DEFAULT 0,
+    last_shown_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

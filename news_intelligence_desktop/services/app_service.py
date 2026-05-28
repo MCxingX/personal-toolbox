@@ -16,6 +16,8 @@ from news_intelligence_desktop.services.notification import NotificationService
 from news_intelligence_desktop.services.api_toolbox import ApiToolboxService
 from news_intelligence_desktop.services.personal import PersonalService
 from news_intelligence_desktop.services.enhanced_services import SearchService, ExportService, BackupService, CredibilityService, SourceHealthService
+from news_intelligence_desktop.services.oddity import OddityService
+from news_intelligence_desktop.services.policy_capture import PolicyService
 
 
 class AppService:
@@ -37,6 +39,8 @@ class AppService:
         self.backup_service = BackupService(self.repo)
         self.credibility = CredibilityService(self.repo)
         self.source_health = SourceHealthService(self.repo)
+        self.oddity_service = OddityService(self.repo)
+        self.policy_service = PolicyService(self.repo)
 
     def initialize(self) -> None:
         self.database.initialize()
@@ -48,6 +52,8 @@ class AppService:
         return self.home_service.generate()
 
     def collect_all(self) -> dict:
+        if self.personal.privacy_enabled():
+            return {"weather": 0, "earthquake": 0, "news": 0, "hot": 0, "tech": 0, "quote": 0, "custom": 0, "errors": [], "privacy_paused": True}
         return self.collector.collect_all()
 
     def generate_brief(self, brief_type: str) -> dict:

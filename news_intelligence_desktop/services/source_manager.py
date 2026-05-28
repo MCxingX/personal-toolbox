@@ -43,8 +43,11 @@ class SourceManager:
             return int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
 
     def update_source(self, source_id: int, **kwargs) -> None:
+        allowed = {"name", "type", "category", "url", "enabled", "rate_limit_per_minute", "auth_type", "auth_config", "parse_rules", "last_success_at", "last_error"}
         with self.repo.db.connect() as conn:
             for k, v in kwargs.items():
+                if k not in allowed:
+                    raise ValueError(f"Invalid source field: {k}")
                 if k == "auth_config":
                     v = json.dumps(v)
                 conn.execute(f"UPDATE source_configs SET {k} = ? WHERE id = ?", (v, source_id))

@@ -7,38 +7,41 @@ class MultiRssConnector(BaseConnector):
     """Connector for multiple RSS feeds with built-in feed list."""
     
     FEEDS = {
-        # 中文新闻源
+        # 国内综合新闻（已验证可用 2026-05）
+        "thepaper": ("https://www.thepaper.cn/rss_newsDetail.jsp", "澎湃新闻", "news"),
+        "chinanews": ("https://www.chinanews.com.cn/rss/scroll-news.xml", "中国新闻网", "news"),
+        "caixin": ("https://www.caixin.com/rss/", "财新", "news"),
+        "sina_cn": ("http://rss.sina.com.cn/news/china/focus15.xml", "新浪国内", "news"),
+        "ifeng_news": ("http://news.ifeng.com/rss/news.xml", "凤凰资讯", "news"),
+        "qq_news": ("http://www.qq.com/rss/", "腾讯新闻", "news"),
+        "zaobao": ("https://www.zaobao.com/rss", "联合早报", "news"),
+        "huanqiu_cn": ("https://rss.huanqiu.com/rss/china.xml", "环球时报", "news"),
+        "chinadaily": ("http://www.chinadaily.com.cn/rss/china_rss.xml", "中国日报", "news"),
+        "gzdaily": ("http://www.gzdaily.com/rss/gzb.xml", "广州日报", "news"),
+        "eeo": ("http://www.eeo.com.cn/rss/rss.xml", "经济观察报", "news"),
+        "people": ("http://www.people.com.cn/rss/politics.xml", "人民网", "policy"),
+        # 科技
         "36kr": ("https://36kr.com/feed", "36氪", "tech"),
-        "huxiu": ("https://www.huxiu.com/rss/0.xml", "虎嗅", "tech"),
-        "zhihu_hot": ("https://www.zhihu.com/rss", "知乎", "hot"),
-        "v2ex": ("https://www.v2ex.com/index.xml", "V2EX", "tech"),
+        "ithome": ("https://www.ithome.com/rss/", "IT之家", "tech"),
+        "oschina": ("https://www.oschina.net/news/rss", "开源中国", "tech"),
+        "infoq_cn": ("https://www.infoq.cn/feed", "InfoQ中文", "tech"),
+        "ifeng_tech": ("http://tech.ifeng.com/rss/tech.xml", "凤凰科技", "tech"),
+        "huanqiu_tech": ("https://rss.huanqiu.com/rss/tech.xml", "环球网科技", "tech"),
         "sspai": ("https://sspai.com/feed", "少数派", "tech"),
-        "guokr": ("http://www.guokr.com/rss/", "果壳", "science"),
-        "douban": ("https://www.douban.com/feed", "豆瓣", "culture"),
-        
-        # 国际新闻源
-        "bbc_zh": ("https://feeds.bbci.co.uk/zhongwen/simp/rss.xml", "BBC中文", "news"),
-        "nyt_zh": ("https://cn.nytimes.com/rss/", "纽约时报中文", "news"),
-        "reuters": ("https://www.reutersagency.com/feed/", "路透社", "news"),
+        # 安全
+        "freebuf": ("https://www.freebuf.com/feed", "FreeBuf", "security"),
+        # 财经
+        "huanqiu_finance": ("https://rss.huanqiu.com/rss/finance.xml", "环球网财经", "finance"),
+        # 军事
+        "ifeng_mil": ("http://mil.ifeng.com/rss/mil.xml", "凤凰军事", "military"),
+        "huanqiu_mil": ("https://rss.huanqiu.com/rss/mil.xml", "环球网军事", "military"),
+        # 国际技术源
+        "devto": ("https://dev.to/feed", "DEV.to", "tech"),
         "techcrunch": ("https://techcrunch.com/feed/", "TechCrunch", "tech"),
         "theverge": ("https://www.theverge.com/rss/index.xml", "The Verge", "tech"),
         "arstechnica": ("https://feeds.arstechnica.com/arstechnica/index", "Ars Technica", "tech"),
-        "hackernews": ("https://hnrss.org/frontpage", "Hacker News", "tech"),
         "github_trending": ("https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml", "GitHub Trending", "tech"),
-        
-        # 安全资讯
-        "freebuf": ("https://www.freebuf.com/feed", "FreeBuf", "security"),
         "securityweek": ("https://www.securityweek.com/feed", "SecurityWeek", "security"),
-        
-        # 开发者社区
-        "devto": ("https://dev.to/feed", "DEV.to", "tech"),
-        "medium_programming": ("https://medium.com/feed/tag/programming", "Medium Programming", "tech"),
-        "css_tricks": ("https://css-tricks.com/feed/", "CSS-Tricks", "tech"),
-        "smashing": ("https://www.smashingmagazine.com/feed/", "Smashing Magazine", "tech"),
-        
-        # 设计资源
-        "dribbble": ("https://dribbble.com/shots/popular.rss", "Dribbble", "design"),
-        "behance": ("https://www.behance.net/feeds/projects", "Behance", "design"),
     }
     
     def fetch_feed(self, feed_key: str) -> FetchResult:
@@ -338,3 +341,50 @@ class OpenLibraryConnector(BaseConnector):
             return FetchResult(True, results, response_ms=ms)
         except Exception as e:
             return FetchResult(False, [], str(e))
+
+
+class BaiduNewsConnector(BaseConnector):
+    """百度新闻关键词搜索，无需 API Key."""
+
+    BASE = "https://www.baidu.com/s"
+
+    def search(self, keyword: str, limit: int = 20) -> FetchResult:
+        try:
+            from urllib.parse import quote
+            url = f"{self.BASE}?wd={quote(keyword)}&tn=news&rtt=4&bsst=1&cl=2&medium=0"
+            code, text, ms = self._get_text(url, headers={"User-Agent": "Mozilla/5.0 NewsIntelligenceDesktop/0.1"})
+            if code != 200:
+                return FetchResult(False, [], f"HTTP {code}", ms)
+            results = self._parse_news_html(text, keyword, limit)
+            return FetchResult(True, results, response_ms=ms)
+        except Exception as e:
+            return FetchResult(False, [], str(e))
+
+    def _parse_news_html(self, html: str, keyword: str, limit: int) -> list[dict]:
+        import re
+        results = []
+        blocks = re.split(r'<div[^>]*class="[^"]*result[^"]*"[^>]*>', html)
+        for block in blocks[1:limit+1]:
+            title_m = re.search(r'<h3[^>]*>.*?<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', block, re.S)
+            if not title_m:
+                continue
+            link = title_m.group(1)
+            title = re.sub(r'<[^>]+>', '', title_m.group(2)).strip()
+            summary_m = re.search(r'<span[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)</span>', block, re.S)
+            summary = re.sub(r'<[^>]+>', '', summary_m.group(1)).strip()[:300] if summary_m else ""
+            source_m = re.search(r'<span[^>]*class="[^"]*c-color-gray[^"]*"[^>]*>(.*?)</span>', block)
+            source = re.sub(r'<[^>]+>', '', source_m.group(1)).strip() if source_m else "百度新闻"
+            time_m = re.search(r'<span[^>]*class="[^"]*c-color-gray2[^"]*"[^>]*>(.*?)</span>', block)
+            pub_time = re.sub(r'<[^>]+>', '', time_m.group(1)).strip() if time_m else ""
+            if title:
+                results.append({
+                    "title": title,
+                    "summary": summary,
+                    "url": link,
+                    "source_name": source,
+                    "source_url": "https://news.baidu.com",
+                    "published_at": pub_time,
+                    "category": "news",
+                    "language": "zh",
+                })
+        return results
