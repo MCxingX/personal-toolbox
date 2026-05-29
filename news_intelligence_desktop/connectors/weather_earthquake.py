@@ -59,14 +59,22 @@ class WttrConnector(BaseConnector):
                 return FetchResult(False, [], f"HTTP {code}", ms)
             results = []
             hourly = data.get("hourly", [])
-            for day in data.get("weather", []):
+            for idx, day in enumerate(data.get("weather", [])):
                 wcode = 0
                 desc = ""
+                humidity = ""
+                wind_speed = ""
+                feels_like = ""
+                uv_index = ""
                 if len(hourly) > 4:
                     h = hourly[4]
                     wcode = int(h.get("weatherCode", 0))
                     zh_list = h.get("lang_zh", [])
                     desc = zh_list[0].get("value", "") if zh_list else ""
+                    humidity = h.get("humidity", "")
+                    wind_speed = h.get("windspeedKmph", "")
+                    feels_like = h.get("FeelsLikeC", "")
+                    uv_index = h.get("uvIndex", "")
                 if not desc:
                     desc = self.CODE_MAP.get(wcode, "")
                 results.append({
@@ -75,6 +83,10 @@ class WttrConnector(BaseConnector):
                     "temp_low": int(day.get("mintempC", 0)),
                     "weathercode": wcode,
                     "description": desc,
+                    "humidity": humidity,
+                    "wind_speed": wind_speed,
+                    "feels_like": feels_like,
+                    "uv_index": uv_index,
                     "lat": float(data.get("nearest_area", [{}])[0].get("latitude", 0)),
                     "lon": float(data.get("nearest_area", [{}])[0].get("longitude", 0)),
                     "source": "wttr.in",

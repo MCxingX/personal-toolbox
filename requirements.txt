@@ -1,5 +1,12 @@
+# 核心依赖
 requests>=2.28.0
 feedparser>=6.0.0
 beautifulsoup4>=4.11.0
 jieba>=0.42.0
-apscheduler>=3.10.0
+lxml>=4.9.0
+
+# API 工具
+uapi-sdk-python>=0.1.0
+
+# 打包工具（仅开发时需要）
+# pyinstaller>=5.0.0

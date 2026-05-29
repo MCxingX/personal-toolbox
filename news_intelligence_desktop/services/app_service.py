@@ -18,6 +18,7 @@ from news_intelligence_desktop.services.personal import PersonalService
 from news_intelligence_desktop.services.enhanced_services import SearchService, ExportService, BackupService, CredibilityService, SourceHealthService
 from news_intelligence_desktop.services.oddity import OddityService
 from news_intelligence_desktop.services.policy_capture import PolicyService
+from news_intelligence_desktop.storage.settings_db import SettingsDB
 
 
 class AppService:
@@ -25,8 +26,9 @@ class AppService:
         self.settings = settings
         self.database = Database(settings.db_path)
         self.repo = Repository(self.database)
+        self.settings_db = SettingsDB(settings.db_path)
         self.source_mgr = SourceManager(self.repo)
-        self.collector = Collector(self.repo)
+        self.collector = Collector(self.repo, settings=self.settings_db.get_all())
         self.quote_service = DailyQuoteService(self.repo)
         self.tech_service = TechChangeService(self.repo)
         self.home_service = HomeDashboardService(self.repo, self.quote_service, self.tech_service)
@@ -47,6 +49,17 @@ class AppService:
         self.repo.seed_defaults()
         self.quote_service.seed_quotes()
         self.api_service.seed_catalog()
+
+        # 启动时检查是否需要清理过期数据（凌晨 0-6 点执行）
+        try:
+            from news_intelligence_desktop.services.data_retention import check_and_cleanup_if_needed
+            result = check_and_cleanup_if_needed(self.repo)
+            if result and not result.get("skipped"):
+                total = sum(v for k, v in result.items() if k != "skipped")
+                if total > 0:
+                    print(f"启动清理: 删除 {total} 条过期数据")
+        except Exception as e:
+            pass  # 清理失败不影响启动
 
     def home_dashboard(self) -> dict:
         return self.home_service.generate()

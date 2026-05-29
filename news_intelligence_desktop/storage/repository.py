@@ -198,6 +198,112 @@ class Repository:
         with self.db.connect() as conn:
             conn.execute("INSERT INTO user_prefs(key, value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
 
+    # ===== 网页来源管理 =====
+
+    def add_web_source(self, name: str, url: str, rules: dict = None) -> int:
+        """添加网页来源."""
+        rules = rules or {}
+        with self.db.connect() as conn:
+            conn.execute(
+                """INSERT INTO web_page_sources(name, url, url_pattern, title_selector, link_selector,
+                summary_selector, content_selector, date_selector, author_selector, item_selector,
+                use_xpath, encoding, max_items, remove_selectors, category)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    name, url,
+                    rules.get("url_pattern", ""),
+                    rules.get("title_selector", ""),
+                    rules.get("link_selector", "a[href]"),
+                    rules.get("summary_selector", ""),
+                    rules.get("content_selector", ""),
+                    rules.get("date_selector", ""),
+                    rules.get("author_selector", ""),
+                    rules.get("item_selector", ""),
+                    1 if rules.get("use_xpath") else 0,
+                    rules.get("encoding", ""),
+                    rules.get("max_items", 30),
+                    json.dumps(rules.get("remove_selectors", []), ensure_ascii=False),
+                    rules.get("category", "web"),
+                ),
+            )
+            row = conn.execute("SELECT id FROM web_page_sources WHERE url=?", (url,)).fetchone()
+            return int(row["id"]) if row else 0
+
+    def get_web_source(self, source_id: int) -> dict | None:
+        """获取网页来源."""
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT * FROM web_page_sources WHERE id=?", (source_id,)).fetchone()
+            if row:
+                result = dict(row)
+                result["remove_selectors"] = json.loads(result.get("remove_selectors", "[]"))
+                return result
+            return None
+
+    def get_web_source_by_url(self, url: str) -> dict | None:
+        """根据 URL 获取网页来源."""
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT * FROM web_page_sources WHERE url=?", (url,)).fetchone()
+            if row:
+                result = dict(row)
+                result["remove_selectors"] = json.loads(result.get("remove_selectors", "[]"))
+                return result
+            return None
+
+    def list_web_sources(self, enabled_only: bool = True) -> list[dict]:
+        """列出网页来源."""
+        with self.db.connect() as conn:
+            if enabled_only:
+                rows = conn.execute("SELECT * FROM web_page_sources WHERE enabled=1 ORDER BY name").fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM web_page_sources ORDER BY name").fetchall()
+            results = []
+            for row in rows:
+                result = dict(row)
+                result["remove_selectors"] = json.loads(result.get("remove_selectors", "[]"))
+                results.append(result)
+            return results
+
+    def update_web_source(self, source_id: int, **kwargs) -> bool:
+        """更新网页来源."""
+        allowed = {"name", "url", "url_pattern", "title_selector", "link_selector", "summary_selector",
+                   "content_selector", "date_selector", "author_selector", "item_selector",
+                   "use_xpath", "encoding", "max_items", "remove_selectors", "category", "enabled"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed}
+        if not updates:
+            return False
+
+        if "remove_selectors" in updates and isinstance(updates["remove_selectors"], list):
+            updates["remove_selectors"] = json.dumps(updates["remove_selectors"], ensure_ascii=False)
+        if "use_xpath" in updates:
+            updates["use_xpath"] = 1 if updates["use_xpath"] else 0
+
+        set_clause = ", ".join(f"{k}=?" for k in updates)
+        values = list(updates.values()) + [source_id]
+
+        with self.db.connect() as conn:
+            cursor = conn.execute(f"UPDATE web_page_sources SET {set_clause} WHERE id=?", values)
+            return cursor.rowcount > 0
+
+    def delete_web_source(self, source_id: int) -> bool:
+        """删除网页来源."""
+        with self.db.connect() as conn:
+            cursor = conn.execute("DELETE FROM web_page_sources WHERE id=?", (source_id,))
+            return cursor.rowcount > 0
+
+    def update_web_source_fetch_time(self, source_id: int, error: str = "") -> None:
+        """更新网页来源采集时间."""
+        with self.db.connect() as conn:
+            if error:
+                conn.execute(
+                    "UPDATE web_page_sources SET last_fetch_at=CURRENT_TIMESTAMP, last_error=? WHERE id=?",
+                    (error, source_id)
+                )
+            else:
+                conn.execute(
+                    "UPDATE web_page_sources SET last_fetch_at=CURRENT_TIMESTAMP, last_error='' WHERE id=?",
+                    (source_id,)
+                )
+
 
 def default_articles() -> list[ArticleInput]:
     return [

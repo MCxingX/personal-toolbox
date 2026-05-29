@@ -33,26 +33,67 @@ class Collector:
         self.settings = settings or {}
 
     def collect_all(self) -> dict:
-        results = {"weather": 0, "earthquake": 0, "news": 0, "hot": 0, "tech": 0, "quote": 0, "custom": 0, "errors": []}
-        jobs = {
+        from news_intelligence_desktop.connectors.sections import get_all_sections, is_source_enabled
+
+        results = {"weather": 0, "earthquake": 0, "news": 0, "hot": 0, "tech": 0, "quote": 0, "tophub": 0, "uapi": 0, "custom": 0, "web": 0, "errors": []}
+
+        # 基础数据源（天气、地震、语录、新闻）始终采集
+        base_jobs = {
             "weather": self._collect_weather,
             "earthquake": self._collect_earthquake,
-            "news": self._collect_news,
-            "hot": self._collect_hot,
-            "tech": self._collect_tech,
             "quote": self._collect_quotes,
-            "custom": self._collect_custom_sources,
         }
-        # Limit workers to avoid overwhelming APIs, SQLite writes, and the desktop UI.
+
+        # 板块化数据源（按配置动态采集）
+        section_jobs = {}
+
+        # 检查各板块是否启用
+        if is_source_enabled("news", "news_rss", self.settings):
+            section_jobs["news"] = self._collect_news
+        if is_source_enabled("news", "tophub", self.settings):
+            section_jobs["tophub"] = self._collect_tophub
+        if is_source_enabled("news", "uapi", self.settings):
+            section_jobs["uapi"] = self._collect_uapi
+        if is_source_enabled("news", "custom", self.settings):
+            section_jobs["custom"] = self._collect_custom_sources
+        if is_source_enabled("tech", "hacker_news", self.settings):
+            section_jobs["tech"] = self._collect_tech
+        if is_source_enabled("news", "hot_news", self.settings):
+            section_jobs["hot"] = self._collect_hot
+
+        # 网页来源始终采集
+        section_jobs["web"] = self._collect_web_sources
+
+        all_jobs = {**base_jobs, **section_jobs}
+
         with ThreadPoolExecutor(max_workers=3) as executor:
-            future_map = {executor.submit(func): name for name, func in jobs.items()}
+            future_map = {executor.submit(func): name for name, func in all_jobs.items()}
             for future in as_completed(future_map):
                 name = future_map[future]
                 try:
                     results[name] = future.result()
                 except Exception as e:
                     results["errors"].append(f"{name}: {e}")
+
+        try:
+            from news_intelligence_desktop.services.notification import NotificationService
+            NotificationService(self.repo).process_snoozed_notifications()
+        except Exception as e:
+            logger.debug("延迟通知处理跳过: %s", e)
+
         return results
+
+    def _save_article(self, article: ArticleInput) -> int:
+        article_id = self.repo.add_article(article)
+        if article_id:
+            try:
+                from news_intelligence_desktop.services.notification import NotificationService
+                saved = self.repo.get_article(article_id)
+                if saved:
+                    NotificationService(self.repo).check_and_notify(saved)
+            except Exception as e:
+                logger.debug("通知匹配跳过: %s", e)
+        return article_id
 
     def _collect_weather(self) -> int:
         from news_intelligence_desktop.connectors.weather_earthquake import WeatherConnector, WttrConnector
@@ -76,9 +117,9 @@ class Collector:
                 with self.repo.db.connect() as db:
                     for item in result.data:
                         db.execute(
-                            """INSERT OR REPLACE INTO weather_forecasts(location_name, latitude, longitude, forecast_date, temp_high, temp_low, description, weathercode, source)
-                            VALUES(?,?,?,?,?,?,?,?,?)""",
-                            (city, item.get("lat", 0), item.get("lon", 0), item.get("date", ""), item.get("temp_high"), item.get("temp_low"), item.get("description", ""), item.get("weathercode", 0), src_name),
+                            """INSERT OR REPLACE INTO weather_forecasts(location_name, latitude, longitude, forecast_date, temp_high, temp_low, description, weathercode, source, humidity, wind_speed, feels_like, uv_index)
+                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (city, item.get("lat", 0), item.get("lon", 0), item.get("date", ""), item.get("temp_high"), item.get("temp_low"), item.get("description", ""), item.get("weathercode", 0), src_name, str(item.get("humidity", "")), str(item.get("wind_speed", "")), str(item.get("feels_like", "")), str(item.get("uv_index", ""))),
                         )
             else:
                 errors.append(f"{city}: {result.error}")
@@ -115,7 +156,7 @@ class Collector:
                     for item in result.data[:30]:
                         title = normalize_text(item.get("title", ""), 180)
                         summary = enrich_summary(title, item.get("summary", ""), src["name"])
-                        self.repo.add_article(ArticleInput(
+                        self._save_article(ArticleInput(
                             title=title, summary=summary, source_name=src["name"],
                             source_url=src["url"], url=item.get("url", ""), category=src.get("category") or "news",
                             published_at=item.get("published_at"), language=item.get("language", "zh"),
@@ -132,7 +173,7 @@ class Collector:
                     for item in items:
                         title = normalize_text(item["title"], 180)
                         summary = enrich_summary(title, item.get("summary", ""), src["name"])
-                        self.repo.add_article(ArticleInput(
+                        self._save_article(ArticleInput(
                             title=title, summary=summary, source_name=src["name"], source_url=src["url"],
                             url=item.get("url") or src["url"], category=src.get("category") or "news", language="zh",
                             importance_score=importance_score(title, summary, src.get("category") or "news", src["name"]),
@@ -170,9 +211,9 @@ class Collector:
     def _collect_earthquake(self) -> int:
         from news_intelligence_desktop.connectors.weather_earthquake import EarthquakeConnector, CeicRssConnector
         total = 0
-        # USGS
+        # USGS - 降低震级阈值以获取更多数据
         usgs = EarthquakeConnector()
-        result = usgs.fetch_recent()
+        result = usgs.fetch_recent(min_magnitude=2.5, limit=50)
         source_id = self.repo.get_source_id("USGS Earthquake") or 2
         if result.ok:
             self.repo.record_source_success(source_id, result.response_ms)
@@ -185,7 +226,7 @@ class Collector:
             total += len(result.data)
         else:
             self.repo.record_source_failure(source_id, result.error)
-        # CEIC
+        # CEIC（可能不可用）
         ceic = CeicRssConnector()
         ceic_result = ceic.fetch_recent()
         ceic_source_id = self.repo.get_source_id("CEIC地震台网") or 3
@@ -199,7 +240,7 @@ class Collector:
                     )
             total += len(ceic_result.data)
         else:
-            self.repo.record_source_failure(ceic_source_id, ceic_result.error)
+            logger.info("CEIC 地震台网暂不可用: %s", ceic_result.error)
         return total
 
     def _collect_news(self) -> int:
@@ -262,7 +303,7 @@ class Collector:
                     # 安全/财经/军事优先使用配置的分类，除非 RSS 有明确的标签
                     if category in ("security", "finance", "military", "science", "culture", "odds"):
                         final_cat = category
-                    self.repo.add_article(ArticleInput(
+                    self._save_article(ArticleInput(
                         title=title, summary=summary,
                         source_name=item.get("source_name", name), source_url=url,
                         url=item["url"], category=final_cat,
@@ -288,7 +329,7 @@ class Collector:
                 result = vvhan.fetch_hot(type_)
                 if result.ok:
                     for item in result.data[:15]:
-                        self.repo.add_article(ArticleInput(
+                        self._save_article(ArticleInput(
                             title=item.get("title", ""), summary=item.get("summary", ""),
                             source_name=item.get("source_name", f"韩小韩-{type_}"),
                             source_url=item.get("source_url", ""), url=item.get("url", ""),
@@ -349,7 +390,7 @@ class Collector:
 
             articles_buffer.sort(key=lambda x: x["score"], reverse=True)
             for item in articles_buffer[:30]:
-                self.repo.add_article(ArticleInput(
+                self._save_article(ArticleInput(
                     title=item["title"], summary=item["summary"],
                     source_name=item["source_name"], source_url=item["source_url"],
                     url=item["url"], category="hot",
@@ -370,7 +411,7 @@ class Collector:
                     title = row_dict.get("title", "")
                     if title and title not in existing_titles:
                         existing_titles.add(title)
-                        self.repo.add_article(ArticleInput(
+                        self._save_article(ArticleInput(
                             title=title,
                             summary=row_dict.get("summary", ""),
                             source_name=row_dict.get("source_name", ""),
@@ -393,7 +434,7 @@ class Collector:
         result = devto.fetch_articles(top=15)
         if result.ok:
             for item in result.data:
-                self.repo.add_article(ArticleInput(
+                self._save_article(ArticleInput(
                     title=item["title"], summary=item.get("summary", ""),
                     source_name="DEV.to", source_url=item.get("source_url", ""),
                     url=item["url"], category="tech",
@@ -407,7 +448,7 @@ class Collector:
         result = lobsters.fetch_hot(limit=10)
         if result.ok:
             for item in result.data:
-                self.repo.add_article(ArticleInput(
+                self._save_article(ArticleInput(
                     title=item["title"], summary=item.get("summary", ""),
                     source_name="Lobsters", source_url=item.get("source_url", ""),
                     url=item["url"], category="tech",
@@ -462,14 +503,19 @@ class Collector:
     def _collect_tophub(self) -> int:
         """采集 TopHubData 热榜数据。
 
-        使用用户配置的 API Key，如果未配置则跳过。
+        优先使用 API Key，如果未配置则降级为网页抓取 tophub.today/daily。
         """
-        from news_intelligence_desktop.connectors.tophub import TopHubConnector
-
         # 从设置获取 API Key
         api_key = self.settings.get("tophub_api_key", "")
-        if not api_key:
-            return 0
+
+        if api_key:
+            return self._collect_tophub_api(api_key)
+        else:
+            return self._collect_tophub_web()
+
+    def _collect_tophub_api(self, api_key: str) -> int:
+        """通过 API 采集 TopHub 热榜."""
+        from news_intelligence_desktop.connectors.tophub import TopHubConnector
 
         connector = TopHubConnector(api_key)
         total = 0
@@ -477,8 +523,8 @@ class Collector:
         # 获取全部榜单列表
         lists_result = connector.fetch_hot_lists()
         if not lists_result.ok:
-            logger.warning("TopHub 获取榜单列表失败: %s", lists_result.error)
-            return 0
+            logger.warning("TopHub API 获取榜单列表失败: %s，降级为网页抓取", lists_result.error)
+            return self._collect_tophub_web()
 
         # 采集每个榜单的前 30 条
         for lst in lists_result.data[:20]:  # 限制采集 20 个榜单，避免超过 API 限制
@@ -491,7 +537,7 @@ class Collector:
                 for item in items_result.data:
                     title = normalize_text(item.get("title", ""), 180)
                     summary = normalize_text(item.get("summary", ""), 500)
-                    self.repo.add_article(ArticleInput(
+                    self._save_article(ArticleInput(
                         title=title, summary=summary,
                         source_name=item.get("source_name", "TopHub"),
                         source_url=item.get("source_url", ""),
@@ -503,5 +549,95 @@ class Collector:
                 total += len(items_result.data)
             else:
                 logger.warning("TopHub 榜单 %s 采集失败: %s", lst.get("title"), items_result.error)
+
+        return total
+
+    def _collect_tophub_web(self) -> int:
+        """网页抓取 tophub.today/daily 每日早晚报."""
+        from news_intelligence_desktop.connectors.tophub_daily import fetch_tophub_daily, save_tophub_daily
+
+        items = fetch_tophub_daily(zh_only=True)
+        if not items:
+            logger.warning("tophub.today 网页抓取无数据")
+            return 0
+
+        saved = save_tophub_daily(self.repo, items)
+        logger.info("tophub.today 网页抓取: %d 条数据，保存 %d 条新数据", len(items), saved)
+        return len(items)
+
+    def _collect_uapi(self) -> int:
+        """采集 UAPI 全平台热榜（带智能缓存）."""
+        from news_intelligence_desktop.connectors.uapi_connector import collect_uapi_all
+
+        results = collect_uapi_all(self.repo, self.settings)
+        total = sum(results.values())
+        skipped = sum(1 for v in results.values() if v == 0)
+        logger.info("UAPI 采集完成: %d 条新数据, %d 个平台跳过（缓存有效）", total, skipped)
+        return total
+
+    def _collect_web_sources(self) -> int:
+        """采集网页来源数据."""
+        from news_intelligence_desktop.connectors.web_page import WebPageConnector, ParseRule
+
+        web_sources = self.repo.list_web_sources(enabled_only=True)
+        if not web_sources:
+            return 0
+
+        connector = WebPageConnector()
+        total = 0
+
+        for source in web_sources:
+            try:
+                # 构建解析规则
+                rule = ParseRule(
+                    url_pattern=source.get("url_pattern", ""),
+                    title_selector=source.get("title_selector", ""),
+                    link_selector=source.get("link_selector", "a[href]"),
+                    summary_selector=source.get("summary_selector", ""),
+                    content_selector=source.get("content_selector", ""),
+                    date_selector=source.get("date_selector", ""),
+                    author_selector=source.get("author_selector", ""),
+                    item_selector=source.get("item_selector", ""),
+                    use_xpath=bool(source.get("use_xpath", 0)),
+                    encoding=source.get("encoding", ""),
+                    max_items=source.get("max_items", 30),
+                    remove_selectors=source.get("remove_selectors", []),
+                )
+
+                # 使用规则解析
+                if rule.item_selector or rule.title_selector:
+                    result = connector.fetch_with_rules(source["url"], rule)
+                else:
+                    result = connector.fetch_page(source["url"])
+
+                if result.ok:
+                    saved = 0
+                    for item in result.data:
+                        title = normalize_text(item.get("title", ""), 180)
+                        if not title:
+                            continue
+                        summary = enrich_summary(title, item.get("summary", ""), source["name"])
+                        self._save_article(ArticleInput(
+                            title=title,
+                            summary=summary,
+                            source_name=source["name"],
+                            source_url=source["url"],
+                            url=item.get("url", source["url"]),
+                            category=source.get("category", "web"),
+                            published_at=item.get("date"),
+                            language="zh",
+                            importance_score=importance_score(title, summary, source.get("category", "web"), source["name"]),
+                        ))
+                        saved += 1
+                    total += saved
+                    self.repo.update_web_source_fetch_time(source["id"])
+                    logger.info("网页来源 %s: %d 条数据", source["name"], saved)
+                else:
+                    self.repo.update_web_source_fetch_time(source["id"], result.error)
+                    logger.warning("网页来源 %s 失败: %s", source["name"], result.error)
+
+            except Exception as e:
+                self.repo.update_web_source_fetch_time(source["id"], str(e))
+                logger.error("网页来源 %s 异常: %s", source["name"], e)
 
         return total

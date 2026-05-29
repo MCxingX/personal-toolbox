@@ -30,6 +30,7 @@ class SettingsDB:
     def get(self, key: str, default: str = "") -> str:
         """获取设置值."""
         with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT value FROM app_settings WHERE key=?", (key,)
             ).fetchone()
@@ -47,5 +48,6 @@ class SettingsDB:
     def get_all(self) -> dict[str, str]:
         """获取所有设置."""
         with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
             rows = conn.execute("SELECT key, value FROM app_settings").fetchall()
             return {row["key"]: row["value"] for row in rows}

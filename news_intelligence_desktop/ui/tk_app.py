@@ -19,6 +19,17 @@ from news_intelligence_desktop.services.news_quality import format_news_time
 
 CITIES = {city: city_coords(city) for city in all_city_names()}
 
+
+def rgba(hex_color: str, alpha: float = 1.0) -> str:
+    """将 hex 颜色与白色混合，模拟透明度，返回新的 hex 颜色."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    r = int(r * alpha + 255 * (1 - alpha))
+    g = int(g * alpha + 255 * (1 - alpha))
+    b = int(b * alpha + 255 * (1 - alpha))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 # 天气代码描述
 WEATHER_CODES = {
     0: "晴", 1: "大部晴朗", 2: "局部多云", 3: "多云",
@@ -128,6 +139,7 @@ class App(tk.Tk):
             ("搜索", "search", self._show_search),
             ("个人中心", "user", self._show_personal),
             ("来源管理", "source", self._show_sources),
+            ("设置", "settings", self._show_settings),
         ]
 
         self.nav_buttons = {}
@@ -404,20 +416,40 @@ class App(tk.Tk):
                 wraplength=400, justify=tk.LEFT, font=("微软雅黑", 9)
             ).pack(anchor=tk.W, pady=(0, 8))
 
-            # 条目
-            for item in card_data.get("items", [])[:3]:
-                item_frame = tk.Frame(card, bg=self.colors["card_bg"])
-                item_frame.pack(fill=tk.X, pady=2)
-                tk.Label(
-                    item_frame, text="•", bg=self.colors["card_bg"],
-                    fg=self.colors["primary"], font=("微软雅黑", 10, "bold")
-                ).pack(side=tk.LEFT, padx=(0, 5))
-                tk.Label(
-                    item_frame, text=item["title"][:50],
-                    bg=self.colors["card_bg"], fg=self.colors["text"],
-                    wraplength=380, justify=tk.LEFT, font=("微软雅黑", 9),
-                    anchor=tk.W
-                ).pack(side=tk.LEFT, fill=tk.X)
+            # 天气详情卡片特殊处理
+            if card_data.get("weather_detail"):
+                detail = card_data["weather_detail"]
+                for item in detail.get("items", [])[:4]:
+                    item_frame = tk.Frame(card, bg=self.colors["card_bg"])
+                    item_frame.pack(fill=tk.X, pady=2)
+                    tk.Label(
+                        item_frame, text=item.get("summary", "")[:80],
+                        bg=self.colors["card_bg"], fg=self.colors["text"],
+                        wraplength=380, justify=tk.LEFT, font=("微软雅黑", 9),
+                        anchor=tk.W
+                    ).pack(side=tk.LEFT, fill=tk.X)
+            else:
+                # 普通条目
+                for item in card_data.get("items", [])[:3]:
+                    item_frame = tk.Frame(card, bg=self.colors["card_bg"])
+                    item_frame.pack(fill=tk.X, pady=2)
+                    tk.Label(
+                        item_frame, text="•", bg=self.colors["card_bg"],
+                        fg=self.colors["primary"], font=("微软雅黑", 10, "bold")
+                    ).pack(side=tk.LEFT, padx=(0, 5))
+                    # 可点击的标题
+                    title_label = tk.Label(
+                        item_frame, text=item["title"][:50],
+                        bg=self.colors["card_bg"], fg=self.colors["primary"],
+                        wraplength=380, justify=tk.LEFT, font=("微软雅黑", 9, "underline"),
+                        anchor=tk.W, cursor="hand2"
+                    )
+                    title_label.pack(side=tk.LEFT, fill=tk.X)
+                    # 绑定点击事件
+                    if item.get("id"):
+                        title_label.bind("<Button-1>", lambda e, x=item["id"]: self._show_article_detail(x))
+                    elif item.get("url"):
+                        title_label.bind("<Button-1>", lambda e, u=item["url"]: webbrowser.open(u))
 
             # 语录
             if card_data.get("quote"):
@@ -1186,6 +1218,23 @@ class App(tk.Tk):
 
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 绑定鼠标滚轮
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _bind_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-3, "units"))
+            canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(3, "units"))
+
+        def _unbind_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+
+        canvas.bind("<Enter>", _bind_mousewheel)
+        canvas.bind("<Leave>", _unbind_mousewheel)
 
         self._refresh_toolbox()
 
@@ -2277,6 +2326,231 @@ class App(tk.Tk):
         dots = "." * ((step % 3) + 1)
         self._set_status(f"后台静默采集中{dots} 可继续浏览已缓存内容")
         self.after(900, lambda: self._pulse_collect_status(step + 1))
+
+    # ========== 设置页面 ==========
+
+    def _show_settings(self):
+        self._clear_content()
+        self._switch_page("settings")
+        self._set_status("系统设置")
+
+        header = tk.Frame(self.content, bg="#6366f1", height=80)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        tk.Label(
+            header, text="系统设置",
+            bg="#6366f1", fg="white",
+            font=("微软雅黑", 20, "bold")
+        ).pack(expand=True)
+
+        # 滚动容器
+        canvas = tk.Canvas(self.content, bg=self.colors["bg"], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.content, orient=tk.VERTICAL, command=canvas.yview)
+        main_frame = tk.Frame(canvas, bg=self.colors["bg"])
+
+        main_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=main_frame, anchor=tk.NW)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 鼠标滚轮
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
+        # ===== 板块选择 =====
+        tk.Label(
+            main_frame, text="数据板块开关",
+            font=("微软雅黑", 14, "bold"),
+            bg=self.colors["bg"], fg=self.colors["text"]
+        ).pack(anchor=tk.W, padx=25, pady=(20, 5))
+
+        tk.Label(
+            main_frame, text="勾选要启用的数据板块，取消勾选将跳过该板块的数据采集。",
+            font=("微软雅黑", 10),
+            bg=self.colors["bg"], fg=self.colors["text_secondary"]
+        ).pack(anchor=tk.W, padx=25, pady=(0, 10))
+
+        from news_intelligence_desktop.connectors.sections import get_all_sections
+        sections = get_all_sections()
+        self._section_vars = {}
+
+        # 读取已保存的板块配置
+        saved_sections = {}
+        for key in ["social", "news", "tech", "interest", "music_game"]:
+            saved_sections[key] = self.app.settings_db.get(f"section_{key}", "true") == "true"
+
+        for key, section in sections.items():
+            var = tk.BooleanVar(value=saved_sections.get(key, True))
+            self._section_vars[key] = var
+
+            card = tk.Frame(main_frame, bg="white", relief=tk.FLAT, bd=1,
+                            highlightbackground=self.colors["border"], highlightthickness=1,
+                            padx=15, pady=10)
+            card.pack(fill=tk.X, padx=25, pady=3)
+
+            cb = tk.Checkbutton(
+                card, text=f"{section.name} ({len(section.sources)} 个源)",
+                variable=var, bg="white", fg=self.colors["text"],
+                font=("微软雅黑", 11, "bold"), anchor=tk.W
+            )
+            cb.pack(anchor=tk.W)
+
+            tk.Label(
+                card, text=section.description,
+                font=("微软雅黑", 9), bg="white", fg=self.colors["text_secondary"]
+            ).pack(anchor=tk.W, padx=(25, 0))
+
+        def save_sections():
+            for key, var in self._section_vars.items():
+                self.app.settings_db.set(f"section_{key}", str(var.get()).lower())
+            messagebox.showinfo("提示", "板块配置已保存！", parent=self.content)
+
+        tk.Button(main_frame, text="保存板块配置", command=save_sections,
+                  bg=self.colors["success"], fg="white",
+                  font=("微软雅黑", 10, "bold"), relief=tk.FLAT,
+                  padx=15, pady=5, cursor="hand2").pack(anchor=tk.E, padx=25, pady=5)
+
+        # ===== API Key 配置 =====
+        tk.Label(
+            main_frame, text="API Key 配置",
+            font=("微软雅黑", 14, "bold"),
+            bg=self.colors["bg"], fg=self.colors["text"]
+        ).pack(anchor=tk.W, padx=25, pady=(20, 5))
+
+        api_card = tk.Frame(main_frame, bg="white", relief=tk.FLAT, bd=1,
+                            highlightbackground=self.colors["border"], highlightthickness=1,
+                            padx=20, pady=15)
+        api_card.pack(fill=tk.X, padx=25, pady=5)
+
+        tk.Label(api_card, text="TopHubData API Key（可选）",
+                 font=("微软雅黑", 11, "bold"), bg="white", fg=self.colors["text"]).pack(anchor=tk.W)
+        tk.Label(api_card, text="获取全网热榜数据，每天 1000 次免费。留空则使用免费 UAPI。",
+                 font=("微软雅黑", 9), bg="white", fg=self.colors["text_secondary"]).pack(anchor=tk.W, pady=(0, 8))
+
+        entry_frame = tk.Frame(api_card, bg="white")
+        entry_frame.pack(fill=tk.X)
+
+        current_key = self.app.settings_db.get("tophub_api_key", "")
+        self._tophub_key_var = tk.StringVar(value=current_key)
+        key_entry = ttk.Entry(entry_frame, textvariable=self._tophub_key_var, width=50, show="*")
+        key_entry.pack(side=tk.LEFT, padx=(0, 10))
+
+        def toggle_show():
+            if key_entry.cget("show") == "*":
+                key_entry.config(show="")
+                show_btn.config(text="隐藏")
+            else:
+                key_entry.config(show="*")
+                show_btn.config(text="显示")
+
+        show_btn = tk.Button(entry_frame, text="显示", command=toggle_show,
+                             font=("微软雅黑", 9), relief=tk.FLAT, cursor="hand2")
+        show_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        def save_key():
+            self.app.settings_db.set("tophub_api_key", self._tophub_key_var.get().strip())
+            messagebox.showinfo("提示", "API Key 已保存！", parent=self.content)
+
+        tk.Button(entry_frame, text="保存 Key", command=save_key,
+                  bg=self.colors["primary"], fg="white",
+                  font=("微软雅黑", 10, "bold"), relief=tk.FLAT,
+                  padx=15, pady=3, cursor="hand2").pack(side=tk.LEFT)
+
+        # ===== 数据管理 =====
+        tk.Label(
+            main_frame, text="数据管理",
+            font=("微软雅黑", 14, "bold"),
+            bg=self.colors["bg"], fg=self.colors["text"]
+        ).pack(anchor=tk.W, padx=25, pady=(20, 5))
+
+        data_card = tk.Frame(main_frame, bg="white", relief=tk.FLAT, bd=1,
+                             highlightbackground=self.colors["border"], highlightthickness=1,
+                             padx=20, pady=15)
+        data_card.pack(fill=tk.X, padx=25, pady=5)
+
+        tk.Label(data_card, text="数据保留策略",
+                 font=("微软雅黑", 11, "bold"), bg="white", fg=self.colors["text"]).pack(anchor=tk.W)
+        tk.Label(data_card, text="普通新闻保留 7 天，重要文章保留 15 天，超期自动清理。",
+                 font=("微软雅黑", 9), bg="white", fg=self.colors["text_secondary"]).pack(anchor=tk.W, pady=(0, 10))
+
+        # 数据统计
+        from news_intelligence_desktop.services.data_retention import get_data_stats
+        stats = get_data_stats(self.app.repo)
+        stats_text = f"文章总数: {stats.get('total_articles', 0)} | 天气: {stats.get('total_weather', 0)} | 地震: {stats.get('total_earthquake', 0)} | UAPI 平台: {stats.get('uapi_platforms', 0)}"
+        tk.Label(data_card, text=stats_text,
+                 font=("微软雅黑", 9), bg="white", fg=self.colors["text"]).pack(anchor=tk.W, pady=(0, 10))
+
+        btn_frame = tk.Frame(data_card, bg="white")
+        btn_frame.pack(fill=tk.X)
+
+        def do_cleanup():
+            from news_intelligence_desktop.services.data_retention import cleanup_expired_data
+            result = cleanup_expired_data(self.app.repo, force=True)
+            total = sum(v for k, v in result.items() if k != "skipped")
+            if total > 0:
+                messagebox.showinfo("清理完成", f"删除 {total} 条过期数据", parent=self.content)
+            else:
+                messagebox.showinfo("提示", "没有过期数据需要清理", parent=self.content)
+
+        tk.Button(btn_frame, text="立即清理过期数据", command=do_cleanup,
+                  bg="#ff4d4f", fg="white", font=("微软雅黑", 9),
+                  relief=tk.FLAT, padx=10, pady=3, cursor="hand2").pack(side=tk.LEFT, padx=(0, 10))
+
+        # ===== 导入导出 =====
+        tk.Label(
+            main_frame, text="设置导入导出",
+            font=("微软雅黑", 14, "bold"),
+            bg=self.colors["bg"], fg=self.colors["text"]
+        ).pack(anchor=tk.W, padx=25, pady=(20, 5))
+
+        io_card = tk.Frame(main_frame, bg="white", relief=tk.FLAT, bd=1,
+                           highlightbackground=self.colors["border"], highlightthickness=1,
+                           padx=20, pady=15)
+        io_card.pack(fill=tk.X, padx=25, pady=5)
+
+        tk.Label(io_card, text="导出设置可备份 API Key 等配置，导入可恢复到新电脑。",
+                 font=("微软雅黑", 9), bg="white", fg=self.colors["text_secondary"]).pack(anchor=tk.W, pady=(0, 10))
+
+        io_btn_frame = tk.Frame(io_card, bg="white")
+        io_btn_frame.pack(fill=tk.X)
+
+        def do_export():
+            from news_intelligence_desktop.services.settings_io import export_settings
+            path = filedialog.asksaveasfilename(
+                defaultextension=".json",
+                filetypes=[("JSON 文件", "*.json")],
+                title="导出设置"
+            )
+            if path:
+                result = export_settings(self.app.repo, path)
+                messagebox.showinfo("导出成功", f"设置已导出到:\n{path}", parent=self.content)
+
+        def do_import():
+            from news_intelligence_desktop.services.settings_io import import_settings
+            path = filedialog.askopenfilename(
+                filetypes=[("JSON 文件", "*.json")],
+                title="导入设置"
+            )
+            if path:
+                result = import_settings(self.app.repo, path)
+                messagebox.showinfo("导入完成",
+                    f"导入 {result['imported_keys']} 个 Key, {result['imported_sources']} 个源",
+                    parent=self.content)
+
+        tk.Button(io_btn_frame, text="导出设置", command=do_export,
+                  bg=self.colors["primary"], fg="white", font=("微软雅黑", 10),
+                  relief=tk.FLAT, padx=15, pady=3, cursor="hand2").pack(side=tk.LEFT, padx=(0, 10))
+
+        tk.Button(io_btn_frame, text="导入设置", command=do_import,
+                  bg=self.colors["success"], fg="white", font=("微软雅黑", 10),
+                  relief=tk.FLAT, padx=15, pady=3, cursor="hand2").pack(side=tk.LEFT)
+
+        # 底部间距
+        tk.Label(main_frame, text="", bg=self.colors["bg"]).pack(pady=30)
 
 
 def run_gui(data_dir: Path | None = None) -> int:

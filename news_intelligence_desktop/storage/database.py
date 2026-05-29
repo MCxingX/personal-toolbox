@@ -42,6 +42,14 @@ class Database:
         weather_cols = columns("weather_forecasts")
         if "weathercode" not in weather_cols:
             conn.execute("ALTER TABLE weather_forecasts ADD COLUMN weathercode INTEGER DEFAULT 0")
+        if "humidity" not in weather_cols:
+            conn.execute("ALTER TABLE weather_forecasts ADD COLUMN humidity TEXT DEFAULT ''")
+        if "wind_speed" not in weather_cols:
+            conn.execute("ALTER TABLE weather_forecasts ADD COLUMN wind_speed TEXT DEFAULT ''")
+        if "feels_like" not in weather_cols:
+            conn.execute("ALTER TABLE weather_forecasts ADD COLUMN feels_like TEXT DEFAULT ''")
+        if "uv_index" not in weather_cols:
+            conn.execute("ALTER TABLE weather_forecasts ADD COLUMN uv_index TEXT DEFAULT ''")
 
         api_cols = columns("api_catalog")
         if "api_kind" not in api_cols:
@@ -406,5 +414,28 @@ CREATE TABLE IF NOT EXISTS policy_items(
     source_url TEXT NOT NULL DEFAULT '',
     source_name TEXT NOT NULL DEFAULT '',
     collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS web_page_sources(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,
+    url_pattern TEXT NOT NULL DEFAULT '',
+    title_selector TEXT NOT NULL DEFAULT '',
+    link_selector TEXT NOT NULL DEFAULT 'a[href]',
+    summary_selector TEXT NOT NULL DEFAULT '',
+    content_selector TEXT NOT NULL DEFAULT '',
+    date_selector TEXT NOT NULL DEFAULT '',
+    author_selector TEXT NOT NULL DEFAULT '',
+    item_selector TEXT NOT NULL DEFAULT '',
+    use_xpath INTEGER NOT NULL DEFAULT 0,
+    encoding TEXT NOT NULL DEFAULT '',
+    max_items INTEGER NOT NULL DEFAULT 30,
+    remove_selectors TEXT NOT NULL DEFAULT '[]',
+    category TEXT NOT NULL DEFAULT 'web',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_fetch_at TEXT,
+    last_error TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """

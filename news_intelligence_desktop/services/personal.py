@@ -129,3 +129,223 @@ class PersonalService:
     def pending_tasks(self) -> list[dict]:
         with self.repo.db.connect() as conn:
             return [dict(row) for row in conn.execute("SELECT * FROM sync_queue WHERE status='pending' ORDER BY id")]
+
+    def get_collection_stats(self) -> dict:
+        """获取收藏统计."""
+        with self.repo.db.connect() as conn:
+            favorites = conn.execute("SELECT COUNT(*) as c FROM collections WHERE collection_type='favorite'").fetchone()["c"]
+            read_later = conn.execute("SELECT COUNT(*) as c FROM collections WHERE collection_type='read_later'").fetchone()["c"]
+            special = conn.execute("SELECT COUNT(*) as c FROM special_favorite_sources WHERE enabled=1").fetchone()["c"]
+            watchlist = conn.execute("SELECT COUNT(*) as c FROM watchlist_items WHERE enabled=1").fetchone()["c"]
+
+            # 阅读状态统计
+            read_count = conn.execute("SELECT COUNT(*) as c FROM reading_states WHERE state='read'").fetchone()["c"]
+            unread_count = conn.execute("SELECT COUNT(*) as c FROM articles").fetchone()["c"] - read_count
+
+            return {
+                "favorites": favorites,
+                "read_later": read_later,
+                "special_tabs": special,
+                "watchlist": watchlist,
+                "read": read_count,
+                "unread": unread_count,
+            }
+
+    def get_reading_history(self, limit: int = 50) -> list[dict]:
+        """获取阅读历史."""
+        with self.repo.db.connect() as conn:
+            return [dict(row) for row in conn.execute(
+                """SELECT a.*, rs.state, rs.updated_at as read_at
+                FROM reading_states rs
+                JOIN articles a ON a.id = rs.item_id
+                WHERE rs.item_type = 'article'
+                ORDER BY rs.updated_at DESC
+                LIMIT ?""",
+                (limit,),
+            )]
+
+    def remove_from_collection(self, item_type: str, item_id: int, collection_type: str) -> bool:
+        """从收藏中移除."""
+        with self.repo.db.connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM collections WHERE item_type=? AND item_id=? AND collection_type=?",
+                (item_type, item_id, collection_type),
+            )
+            # 同时更新阅读状态
+            if collection_type == "favorite":
+                conn.execute(
+                    "UPDATE reading_states SET state='read' WHERE item_type=? AND item_id=?",
+                    (item_type, item_id),
+                )
+            elif collection_type == "read_later":
+                conn.execute(
+                    "UPDATE reading_states SET state='read' WHERE item_type=? AND item_id=?",
+                    (item_type, item_id),
+                )
+            return cursor.rowcount > 0
+
+    def add_note_to_collection(self, item_type: str, item_id: int, collection_type: str, note: str) -> bool:
+        """添加收藏备注."""
+        with self.repo.db.connect() as conn:
+            cursor = conn.execute(
+                "UPDATE collections SET note=? WHERE item_type=? AND item_id=? AND collection_type=?",
+                (note, item_type, item_id, collection_type),
+            )
+            return cursor.rowcount > 0
+
+    def update_watchlist(self, watchlist_id: int, **kwargs) -> bool:
+        """更新关注清单."""
+        allowed = {"name", "type", "keywords", "exclude_words", "priority", "enabled", "note"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed}
+
+        if not updates:
+            return False
+
+        if "keywords" in updates and isinstance(updates["keywords"], list):
+            updates["keywords"] = json.dumps(updates["keywords"], ensure_ascii=False)
+        if "exclude_words" in updates and isinstance(updates["exclude_words"], list):
+            updates["exclude_words"] = json.dumps(updates["exclude_words"], ensure_ascii=False)
+        if "enabled" in updates:
+            updates["enabled"] = 1 if updates["enabled"] else 0
+
+        set_clause = ", ".join(f"{k}=?" for k in updates)
+        values = list(updates.values()) + [watchlist_id]
+
+        with self.repo.db.connect() as conn:
+            cursor = conn.execute(f"UPDATE watchlist_items SET {set_clause} WHERE id=?", values)
+            return cursor.rowcount > 0
+
+    def delete_watchlist(self, watchlist_id: int) -> bool:
+        """删除关注项."""
+        with self.repo.db.connect() as conn:
+            cursor = conn.execute("DELETE FROM watchlist_items WHERE id=?", (watchlist_id,))
+            return cursor.rowcount > 0
+
+    def generate_daily_brief(self, brief_type: str = "morning") -> dict:
+        """生成每日简报."""
+        from datetime import date
+        today = date.today().isoformat()
+
+        with self.repo.db.connect() as conn:
+            # 检查是否已生成
+            existing = conn.execute(
+                "SELECT * FROM daily_briefs WHERE brief_type=? AND brief_date=?",
+                (brief_type, today),
+            ).fetchone()
+
+            if existing:
+                return dict(existing)
+
+            # 获取今日文章
+            articles = [dict(row) for row in conn.execute(
+                """SELECT * FROM articles
+                WHERE date(collected_at) = ?
+                ORDER BY importance_score DESC, collected_at DESC
+                LIMIT 20""",
+                (today,),
+            )]
+
+            if not articles:
+                # 获取最新文章
+                articles = [dict(row) for row in conn.execute(
+                    """SELECT * FROM articles
+                    ORDER BY collected_at DESC
+                    LIMIT 10"""
+                )]
+
+            # 生成简报
+            if brief_type == "morning":
+                title = f"早报 - {today}"
+                body = self._generate_morning_brief(articles, today)
+            else:
+                title = f"晚报 - {today}"
+                body = self._generate_evening_brief(articles, today)
+
+            # 保存简报
+            conn.execute(
+                "INSERT INTO daily_briefs(brief_type, brief_date, title, body) VALUES(?,?,?,?)",
+                (brief_type, today, title, body),
+            )
+
+            return {
+                "brief_type": brief_type,
+                "brief_date": today,
+                "title": title,
+                "body": body,
+            }
+
+    def _generate_morning_brief(self, articles: list[dict], today: str) -> str:
+        """生成早报内容."""
+        lines = [f"# 早报 - {today}", ""]
+
+        # 按分类分组
+        by_category = {}
+        for art in articles:
+            cat = art.get("category", "其他")
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(art)
+
+        category_names = {
+            "news": "新闻",
+            "tech": "科技",
+            "hot": "热点",
+            "policy": "政策",
+            "finance": "财经",
+            "security": "安全",
+        }
+
+        for cat, items in by_category.items():
+            cat_name = category_names.get(cat, cat)
+            lines.append(f"## {cat_name}")
+            for item in items[:3]:
+                lines.append(f"- {item['title']}")
+                if item.get("summary"):
+                    lines.append(f"  {item['summary'][:100]}")
+            lines.append("")
+
+        lines.append("---")
+        lines.append(f"共 {len(articles)} 条资讯")
+
+        return "\n".join(lines)
+
+    def _generate_evening_brief(self, articles: list[dict], today: str) -> str:
+        """生成晚报内容."""
+        lines = [f"# 晚报 - {today}", ""]
+
+        # 重要文章
+        important = [a for a in articles if a.get("importance_score", 0) >= 0.7]
+        if important:
+            lines.append("## 重要资讯")
+            for item in important[:5]:
+                lines.append(f"- {item['title']}")
+                if item.get("summary"):
+                    lines.append(f"  {item['summary'][:100]}")
+            lines.append("")
+
+        # 其他文章
+        others = [a for a in articles if a.get("importance_score", 0) < 0.7]
+        if others:
+            lines.append("## 其他资讯")
+            for item in others[:5]:
+                lines.append(f"- {item['title']}")
+            lines.append("")
+
+        lines.append("---")
+        lines.append(f"共 {len(articles)} 条资讯")
+
+        return "\n".join(lines)
+
+    def list_daily_briefs(self, brief_type: str = "", limit: int = 10) -> list[dict]:
+        """列出每日简报."""
+        with self.repo.db.connect() as conn:
+            if brief_type:
+                return [dict(row) for row in conn.execute(
+                    "SELECT * FROM daily_briefs WHERE brief_type=? ORDER BY brief_date DESC LIMIT ?",
+                    (brief_type, limit),
+                )]
+            else:
+                return [dict(row) for row in conn.execute(
+                    "SELECT * FROM daily_briefs ORDER BY brief_date DESC LIMIT ?",
+                    (limit,),
+                )]
